@@ -381,27 +381,27 @@ const RTL = new Set(["fa"]);
 const UI = {
   en: { cohort:"Cohort", sp:" ", inProgress:" (in progress, today is t={t})", noPrice:" (lacks price data before mid-2010)",
         headerTpl:"Day {t} Post-Onboarding Window", colWindow:"Window", colPrice:"Price", colUnspent:"% Unspent",
-        to:"to", cycle:"Cycle", top:"Top", bottom:"Bottom",
+        to:"to", cycle:"Cycle", top:"Top", bottom:"Bottom", fromTpl:"[From {d} onwards]",
         tip:"Click to show or hide this cohort.",
         tipE1:"Cohort 1 (2009–2012): tiny early supply makes the cohort denominator unstable — interpret with caution. Click to hide." },
   ja: { cohort:"コホート", sp:"", inProgress:"（進行中、本日 t={t}）", noPrice:"（2010年中頃より前は価格データなし）",
         headerTpl:"オンボーディング後 {t}日目", colWindow:"期間", colPrice:"価格", colUnspent:"未使用%",
-        to:"〜", cycle:"サイクル", top:"天井", bottom:"底",
+        to:"〜", cycle:"サイクル", top:"天井", bottom:"底", fromTpl:"［{d}以降］",
         tip:"クリックで表示／非表示。",
         tipE1:"コホート1（2009〜2012年）：初期供給が少なく分母が不安定です。注意して解釈してください。クリックで非表示。" },
   fr: { cohort:"Cohorte", sp:" ", inProgress:" (en cours, aujourd'hui t={t})", noPrice:" (pas de données de prix avant mi-2010)",
         headerTpl:"Jour {t} de la fenêtre post-intégration", colWindow:"Fenêtre", colPrice:"Prix", colUnspent:"% non dépensé",
-        to:"à", cycle:"Cycle", top:"Sommet", bottom:"Creux",
+        to:"à", cycle:"Cycle", top:"Sommet", bottom:"Creux", fromTpl:"[à partir du {d}]",
         tip:"Cliquez pour afficher ou masquer cette cohorte.",
         tipE1:"Cohorte 1 (2009–2012) : la faible offre initiale rend le dénominateur instable — à interpréter avec prudence. Cliquez pour masquer." },
   fa: { cohort:"کوهورت", sp:" ", inProgress:" (در حال انجام، امروز t={t})", noPrice:" (فاقد دادهٔ قیمت پیش از اواسط ۲۰۱۰)",
         headerTpl:"روز {t} پس از پذیرش", colWindow:"بازه", colPrice:"قیمت", colUnspent:"٪ خرج‌نشده",
-        to:"تا", cycle:"چرخه", top:"سقف", bottom:"کف",
+        to:"تا", cycle:"چرخه", top:"سقف", bottom:"کف", fromTpl:"[از {d} به بعد]",
         tip:"برای نمایش یا پنهان‌کردن این کوهورت کلیک کنید.",
         tipE1:"کوهورت ۱ (۲۰۰۹–۲۰۱۲): عرضهٔ ناچیز اولیه مخرج را ناپایدار می‌کند — با احتیاط تفسیر کنید. برای پنهان‌کردن کلیک کنید." },
   zh: { cohort:"队列", sp:"", inProgress:"（进行中，今天 t={t}）", noPrice:"（2010年中之前无价格数据）",
         headerTpl:"纳入后第 {t} 天", colWindow:"区间", colPrice:"价格", colUnspent:"未花费%",
-        to:"至", cycle:"周期", top:"顶部", bottom:"底部",
+        to:"至", cycle:"周期", top:"顶部", bottom:"底部", fromTpl:"[{d} 起]",
         tip:"点击显示或隐藏该队列。",
         tipE1:"队列1（2009–2012）：早期供应极少，使分母不稳定——请谨慎解读。点击隐藏。" },
 };
@@ -712,10 +712,14 @@ let priceData = null;   // BTC USD daily price series (per-epoch price overlay)
 // Localized epoch label for the legend (chart series identity is by colour).
 function epochLabel(num) {
   const u = _ui();
-  const base = `${u.cohort}${u.sp}${num}`;
-  if (num === 5) return base + u.inProgress.replace("{t}", PHASE_DAYS);
-  if (num === 1) return base + u.noPrice;
-  return base;
+  let label = `${u.cohort}${u.sp}${num}`;
+  if (num === 5) label += u.inProgress.replace("{t}", PHASE_DAYS);
+  else if (num === 1) label += u.noPrice;
+  // Window-open date (halving − days-before), clamped to genesis; tracks B + language.
+  const ep = EPOCHS[num - 1];
+  const openIdx = Math.max(0, dayIdx(ep.start) - DAYS_BEFORE);
+  const openDate = _fmtDate(GENESIS.getTime() + openIdx * DAY_MS);
+  return label + " " + u.fromTpl.replace("{d}", openDate);
 }
 function buildLegend() {
   legendEl.innerHTML = EPOCHS
@@ -857,6 +861,7 @@ function render() {
   chart.timeScale().fitContent();
   requestAnimationFrame(positionEndpointLabels);
   syncTitles();
+  buildLegend();
   status.textContent = "";   // cleared on completion — credit footer is the bottom line
 }
 
