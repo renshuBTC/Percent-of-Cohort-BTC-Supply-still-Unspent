@@ -7,7 +7,7 @@ much of that cohort's BTC (or USD cost basis) is still un-spent over time. The
 chart auto-extends by one day each calendar day, and the current epoch is always
 plotted up to today.
 
-**Live demo:** https://renshuBTC.github.io/btc-epoch-cohort-survival/
+**Live demo:** https://bitcointerminal.net/Percent-of-Cohort-BTC-Supply-still-Unspent/
 
 A cohort-analysis cousin of [HODL Waves](https://unchained.com/blog/hodl-waves-1/),
 viewed one halving epoch at a time.
