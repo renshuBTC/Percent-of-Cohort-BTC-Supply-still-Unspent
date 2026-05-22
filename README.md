@@ -1,142 +1,130 @@
-# Bitcoin epoch new-buyer cohort survival — Stratified Kaplan-Meier
+# Percent of Cohort BTC Supply still Unspent
 
-Single-file, dependency-light interactive analysis page that compares the
-"new buyer" cohort survival of every Bitcoin halving epoch using a
-stratified Kaplan-Meier survival function. The chart auto-extends by one
-day each calendar day so Epoch 5's curve is always plotted up to today,
-with prior epochs truncated to the same days-since-halving point for fair
-comparison.
+A single-file, dependency-light interactive page that compares the **survival
+of "new-buyer" cohorts across every Bitcoin halving epoch** with a stratified
+Kaplan–Meier survival function. Each halving epoch gets one curve tracking how
+much of that cohort's BTC (or USD cost basis) is still un-spent over time. The
+chart auto-extends by one day each calendar day, and the current epoch is always
+plotted up to today.
 
-**Live demo:** [your-username.github.io/your-repo/](https://your-username.github.io/your-repo/)
+**Live demo:** https://renshuBTC.github.io/btc-epoch-cohort-survival/
+
+A cohort-analysis cousin of [HODL Waves](https://unchained.com/blog/hodl-waves-1/),
+viewed one halving epoch at a time.
 
 ## What it shows
 
 For each halving epoch:
 
-- **Cohort** = every UTXO created during the first *W* days post-halving
-  (the "onboarding window") AND still un-spent at the close of that
-  window.
-- **Survival curve S(t)** = fraction of that cohort still un-spent at
-  follow-up day *t* post-onboarding.
-- **Curves are read at the right edge**: the higher the curve at the
-  current days-since-halving point, the stickier that epoch's new
-  buyers.
+- **Cohort** — every UTXO created inside the *onboarding window* (W days,
+  optionally opening B days *before* the halving) that is still un-spent at the
+  close of that window. Its size then is `N₀`.
+- **Survival curve S(t)** — the fraction of that cohort still un-spent at
+  follow-up day `t` after the onboarding close. `S(0) = 1`.
+- A faint **BTC price overlay** per epoch (shared log scale, normalized to the
+  onboarding-close price) with a **cycle-top marker** on each line.
+- A **crosshair readout** giving, per visible cohort, the calendar window, the
+  BTC price, and the % still un-spent at the hovered day.
 
-The onboarding window *W* is configurable via the dropdown (30, 60, 90,
-or 180 days). All four options correspond exactly to BRK age-band edges
-so the cohort denominator at *t*=0 has zero interpolation error.
+## Controls
 
-The **weighting** is also configurable:
-
-- **BTC (default, sats-weighted)** — every UTXO weighted by its sat
-  value. Answers the economic question — *"what fraction of the capital
-  onboarded in this epoch is still un-spent?"* — but very sensitive to
-  single large actors (ETF custodians, treasury holders, exchange cold-
-  wallet moves can produce visible cliffs).
-- **Count** — every UTXO contributes equally regardless of size. Robust
-  to single whale moves but contaminated by exchange consolidation,
-  change outputs, and dust UTXOs that aren't really hodler decisions.
-  Closer to the population-cohort metaphor (each "person" = each UTXO).
-
-Disagreement between the two views is itself informative: it tells you
-whether stickiness is broad-based across many holders or concentration-
-driven by a few large ones.
+- **Days before halving** (input, 0–365, default **99**) — how far before the
+  halving the cohort window opens. The default 99 is the gap from BlackRock's
+  IBIT spot-ETF launch (2024-01-11) to the 2024 halving.
+- **Onboarding window W** — `30 / 90 / 150 / 180 / 365` days. Every value sits on
+  a BRK age-band edge, so the cohort denominator `N₀` has zero interpolation
+  error. (Keyboard: `A`/`←` previous, `D`/`→` next.)
+- **Weighting** — **BTC** (sat-weighted supply) or **USD** (realized cap /
+  cost-basis dollars).
+- **Right-censor** (default ON) — truncate every cohort to the follow-up the
+  current epoch has reached, so all curves are directly comparable over a common
+  horizon. OFF follows each cohort to today (full history, unequal lengths).
+- **Legend** — click a cohort to show/hide it. Cohort 1 (2009–2012) is hidden by
+  default; its tiny early supply makes the denominator unstable.
+- **Language** — English, 日本語, Français, فارسی, 中文 (cycle button).
 
 ## Method
 
-For each epoch *N* (halving date *H<sub>N</sub>*) and onboarding window
-*W*, evaluated through follow-up day *t* in [0, *T* − *W*] where *T* =
-days(today − Halving 4):
+For a halving epoch with halving date `H`, window `W`, and pre-halving offset `B`,
+evaluated at follow-up day `t`:
 
 ```
-n(0) = count of UTXOs aged 0..W at observation H_N+W       (cohort)
-n(t) = count of UTXOs aged t..t+W at observation H_N+W+t   (survivors)
-d(t) = n(t-1) − n(t)                                       (events)
-S(t) = ∏_{τ ≤ t} (1 − d(τ)/n(τ-1))                          (K-M)
+window opens at  H − B,   closes at  H − B + W
+N₀   = supply aged ≤ W at the onboarding close                 (cohort)
+N(t) = supply aged in [t, t+W] at observation (close + t)      (survivors)
+S(t) = N(t) / N₀
 ```
 
-Algebraically *S(t) = n(t) / n(0)* given no within-window censoring
-(which holds: all cohort UTXOs are observed throughout the horizon).
-
-The cohort identification step uses the fact that at observation
-*d = H<sub>N</sub> + W + t*, original-cohort UTXOs have age in
-[*t*, *t*+*W*] days. Both endpoints algebraically resolve to the same
-birth window [*H<sub>N</sub>*, *H<sub>N</sub>+W*], so the slice tracks
-exactly the original cohort.
+Equivalently, in product-limit (Kaplan–Meier) form
+`Ŝ(t) = ∏_{i: tᵢ ≤ t} (1 − dᵢ/nᵢ)`. On-chain spends are fully observed, so there
+is no per-coin censoring and the two forms coincide. At observation
+`d = close + t`, original-cohort UTXOs have age in `[t, t+W]`, which resolves
+back to the same birth window — so the slice tracks exactly the original cohort.
 
 ## Data source
 
 All inputs come from a Bitcoin Research Kit (BRK) deployment at
-[bitview.space](https://bitview.space/api), at daily resolution
-(`/api/series/<name>/day1`). Two endpoint families are used, one per
-weighting mode:
+[bitview.space](https://bitview.space/api), daily resolution
+(`/api/series/<name>/day1`). One endpoint family per weighting mode:
 
-- `utxos_under_<BAND>_old_utxo_count`  — count mode (1 UTXO = 1 unit)
-- `utxos_under_<BAND>_old_supply_sats` — BTC mode  (1 sat  = 1 unit)
+- `utxos_under_<BAND>_old_supply_sats` — BTC mode (1 sat = 1 unit)
+- `utxos_under_<BAND>_old_realized_cap` — USD mode (cost-basis dollars)
 
-Each series is the cumulative quantity of UTXOs younger than `<BAND>`
-on that day. The active mode is fetched on first use and cached, so
-toggling back and forth is instant after the initial load.
-
-Bands fetched:
+plus the `price` series for the overlay. Each band series is the cumulative
+quantity of UTXOs younger than `<BAND>` on that day. Bands:
 
 ```
-1h  1w  1m  2m  3m  4m  5m  6m  1y  2y  3y  4y  5y  6y  7y  8y  10y  12y  15y
+1h 1w 1m 2m 3m 4m 5m 6m 1y 2y 3y 4y 5y 6y 7y 8y 10y 12y 15y
 ```
 
-For follow-up days falling between band edges, the cumulative quantity is
-linearly interpolated. Reliable below 6 months (1-month band spacing);
-coarser beyond, where bands widen to 6 and 12 months.
+For follow-up days between band edges the cumulative quantity is linearly
+interpolated.
 
-## Caveats
+## Accuracy / caveats
 
-1. **"New buyer" is a UTXO proxy, not a wallet/person proxy.** Includes
-   coinbase, change outputs, and exchange-internal moves. Cross-epoch
-   comparison stays valid because the same noise distribution applies to
-   each epoch; the absolute survival rates are not literally "fraction
-   of new buyers who held."
-2. **Linear interpolation between band edges** is reliable below 6
-   months; past 6 months the gaps widen to 6 and 12 months and
-   interpolation noise increases.
-3. **Independence assumption violated.** Large entities (exchanges,
-   ETFs, treasury holders) spend many UTXOs simultaneously. This file
-   omits confidence bands and significance tests deliberately for
-   readability; if you need them, see [Greenwood variance and the
-   log-rank test](https://en.wikipedia.org/wiki/Logrank_test).
-4. **Epoch 1 excluded from chart.** 2009-2010 supply is so small that
-   the cohort denominator is unstable. Math runs but the curve is not
-   plotted.
+1. **Cohorts are reconstructed from age-band totals, not per-UTXO tracking.**
+   The window choices sit on band edges, so `N₀` is exact, but the curve's tail
+   is interpolated once a cohort's age passes the fine 30-day edges (gaps widen
+   to 1 year beyond the 6-month mark). Read tail percentages as approximate
+   (typically off by a low single-digit number of percentage points, biased
+   slightly low); cross-cohort comparisons are more robust than any single
+   absolute value.
+2. **"New buyer" is a UTXO proxy, not a wallet/person proxy** — includes
+   coinbase, change, and exchange-internal moves.
+3. **No confidence bands / significance tests** — omitted for readability;
+   large entities spending many UTXOs at once violate independence.
+4. **Cycle bottoms are not marked** — the bear-market low falls outside the
+   default window and the series minimum is the onboarding-start price, not a
+   real bottom. Only cycle tops (captured within the window) are marked.
 
 ## Stack
 
-- Pure HTML / CSS / vanilla JS — no build step
-- One CDN dependency: [TradingView Lightweight Charts v5](https://github.com/tradingview/lightweight-charts)
-  (Apache 2.0 license)
-- Live data from BRK at `bitview.space`
+- Pure HTML / CSS / vanilla JS — no build step, single file.
+- CDN deps (pinned): [TradingView Lightweight Charts 5.2.0](https://github.com/tradingview/lightweight-charts)
+  (Apache-2.0) and [MathJax 3.2.2](https://www.mathjax.org/) for the formulas.
+- Live data from BRK at `bitview.space`.
 
 ## Local development
 
-No build needed. Open `index.html` in a browser.
-
-For local file fetches against the BRK API:
-- The page makes cross-origin fetches to `https://bitview.space/api/...`
-- Modern browsers may block file:// → https:// XHR; serve over HTTP if
-  needed:
+No build needed. Serve over HTTP (the page makes cross-origin fetches to
+`bitview.space`, which browsers may block from `file://`):
 
 ```bash
-python3 -m http.server 8000
-# then visit http://localhost:8000/
+python3 -m http.server 8000   # then visit http://localhost:8000/
 ```
 
 ## License
 
-CC0 1.0 Universal — public domain. Free to use, modify, redistribute,
-attribution appreciated but not required. See [LICENSE](LICENSE).
+CC0 1.0 Universal — public domain. Free to use, modify, redistribute. See
+[LICENSE](LICENSE).
 
 ## Credits
 
-- **Bitcoin Research Kit (BRK)**: open-source Bitcoin indexer —
-  [github.com/bitcoinresearchkit/brk](https://github.com/bitcoinresearchkit/brk)
-- **TradingView Lightweight Charts**: open-source charting library
-- **Kaplan-Meier**: Edward L. Kaplan & Paul Meier (1958), *Nonparametric
-  estimation from incomplete observations*, JASA 53(282).
+- **HODL Waves** lens — [Unchained Capital](https://unchained.com/blog/hodl-waves-1/)
+  (Dhruv Bansal, 2018).
+- Per-epoch cohort-analysis framing — *"Deciphering Bitcoin Blockchain Data by
+  Cohort Analysis"*, Yulin Liu, Luyao Zhang & Yinhong Zhao (*Scientific Data*, 2022).
+- **Bitcoin Research Kit (BRK)** — open-source Bitcoin indexer:
+  [github.com/bitcoinresearchkit/brk](https://github.com/bitcoinresearchkit/brk).
+- **TradingView Lightweight Charts** — open-source charting library.
+- **Kaplan–Meier** — Edward L. Kaplan & Paul Meier (1958), JASA 53(282).

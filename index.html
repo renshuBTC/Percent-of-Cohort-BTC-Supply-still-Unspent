@@ -66,95 +66,271 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Stratified Kaplan-Meier — Bitcoin new-buyer cohort survival by halving epoch</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Percent of Cohort BTC still Unspent</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;700&family=Roboto+Condensed:wght@700&display=swap">
 <meta name="description" content="Stratified Kaplan-Meier survival curves for Bitcoin new-buyer cohorts across the five halving epochs, evaluated at the same days-since-halving point that Epoch 5 has reached today. Derived from BRK (Bitcoin Research Kit) age-band UTXO count series.">
 <style>
   :root {
-    --bg: #0a0a0a;
-    --panel: #141414;
+    --bg: #000000;            /* pure black — match bitcointerminal */
+    --panel: #000000;
     --border: #2a2a2a;
     --text: #e8e8e8;
     --muted: #888;
     --orange: #f7931a;
-    --c1: rgba(140,140,140,0.85);
-    --c2: rgba(140,180,220,0.95);
-    --c3: rgba(180,210,140,0.95);
-    --c4: rgba(230,200,120,0.95);
-    --c5: var(--orange);
+    /* Bright, maximally-distinct Bloomberg-style line colors on pure black. */
+    /* Red-green colorblind-safe + bright on black: spread across the
+       blue<->yellow axis plus white and pink (no green, which red-green CVD
+       confuse with orange/yellow). */
+    --c1: #ff5ec7;            /* pink    — Epoch 1 */
+    --c2: #3aa0ff;            /* blue    — Epoch 2 */
+    --c3: #ff7a1a;            /* orange  — Epoch 3 */
+    --c4: #ffe000;            /* yellow  — Epoch 4 */
+    --c5: #ffffff;            /* white   — Epoch 5 (live / current) */
   }
   html, body { background: var(--bg); color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    font-family: 'Source Code Pro', Consolas, monospace; font-size: 13px;
     margin: 0; padding: 0; }
-  body { display: flex; padding: 20px; min-height: 100vh; box-sizing: border-box; }
-  body > .chart-wrap { flex: 1; }
-  h1 { font-size: 18px; font-weight: 600; margin: 0 0 6px 0; }
+  body { display: flex; flex-direction: column; padding: 0; min-height: 100vh; box-sizing: border-box; }
+  .page { flex: 1; display: flex; padding: 6px; min-height: 0; }
+  .page > .chart-wrap { flex: 1; }
+  h1 { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); z-index: 6;
+    margin: 0; font-size: 23px; font-weight: 700; text-align: center; color: #ff8c00;
+    pointer-events: none; white-space: nowrap; }
   p  { font-size: 12px; line-height: 1.55; color: var(--muted); margin: 0 0 8px 0; }
   .badge { display: inline-block; padding: 1px 7px; border-radius: 3px; background: rgba(247,147,26,0.12); color: var(--orange); font-size: 10px; font-weight: 600; letter-spacing: 0.05em; vertical-align: middle; }
-  .chart-wrap { background: var(--panel); border: 1px solid var(--border); border-radius: 4px; padding: 18px; display: flex; flex-direction: column; min-height: 600px; }
+  .chart-wrap { background: var(--panel); border: 1px solid var(--border); border-radius: 0; padding: 8px; display: flex; flex-direction: column; min-height: 0; position: relative; }
   .chart-with-axes { flex: 1; display: flex; flex-direction: row; min-height: 540px; }
-  .chart-and-x { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-  #chart { flex: 1; min-height: 510px; }
+  .chart-and-x { flex: 1; display: flex; flex-direction: column; min-width: 0; position: relative; z-index: 1; }
+  #chart { flex: 1; min-height: 510px; margin-right: 56px; }
+  /* Endpoint tags: native look (non-bold, chart font), left edge on the y-axis line. */
+  .endpoint-col { position: absolute; inset: 0; overflow: hidden; pointer-events: none;
+    z-index: 7; font-family: 'Source Code Pro', Consolas, monospace; }
+  .endpoint-col .ep-item { position: absolute; transform: translateY(-50%);
+    padding: 1px 4px; border-radius: 2px; color: #000; white-space: nowrap;
+    font-size: 11px; font-weight: 400; line-height: 1.3; }
+  /* Crosshair label — to the right of the white vertical line. */
+  #cross-tip { position: absolute; display: none; z-index: 8; pointer-events: none;
+    background: transparent; border: none; box-shadow: none; padding: 4px 6px;
+    font-family: 'Source Code Pro', Consolas, monospace; font-size: 14px; line-height: 1.55;
+    white-space: nowrap; color: #fff;
+    text-shadow: 0 0 4px #000, 0 0 4px #000, 0 0 2px #000; }
+  #cross-tip .ct-head { color: #fff; font-weight: 400; }
+  #cross-tip .ct-sub { color: #fff; margin-bottom: 5px; }
+  #cross-tip .ct-grid { display: grid;
+    grid-template-columns: auto auto auto auto auto auto;
+    column-gap: 12px; row-gap: 2px; align-items: baseline; }
+  #cross-tip .ct-grid > span { color: #fff; white-space: nowrap; }
+  #cross-tip .ct-name { font-weight: 400; }
+  #cross-tip .cg-to { opacity: .65; text-align: center; }
+  #cross-tip .cg-price, #cross-tip .cg-pct { text-align: right; }
+  #cross-tip .cg-h { font-weight: 400; opacity: .85; padding-bottom: 2px; }
+  #cross-tip .cg-win { grid-column: span 3; }
+  #cross-tip .ct-note { color: #fff; }
   .x-axis-label { height: 24px; display: flex; align-items: center; justify-content: center;
-    font-size: 12px; color: #ffffff; font-weight: 500; letter-spacing: 0.03em; }
+    font-size: 12px; color: #ff8c00; font-weight: 500; letter-spacing: 0.03em; }
   .y-axis-label { width: 22px; display: flex; align-items: center; justify-content: center;
-    font-size: 12px; color: #ffffff; font-weight: 500; letter-spacing: 0.03em; }
+    font-size: 12px; color: #ff8c00; font-weight: 500; letter-spacing: 0.03em;
+    margin-left: -34px; position: relative; z-index: 0; }
   .y-axis-label > span { transform: rotate(-90deg); white-space: nowrap; display: inline-block; }
-  .status { font-size: 11px; color: var(--muted); padding: 6px 0; font-variant-numeric: tabular-nums; }
+  .status { position: absolute; bottom: 8px; left: 12px; z-index: 5; font-size: 10px;
+    color: var(--muted); opacity: 0.6; font-variant-numeric: tabular-nums; pointer-events: none;
+    background: rgba(0,0,0,0.4); padding: 2px 7px; border-radius: 3px; }
   code { font-family: ui-monospace, "SF Mono", Menlo, monospace; color: var(--text); font-size: 11px; }
   .control-row { display: flex; align-items: center; gap: 10px; font-size: 11px; color: var(--muted); margin-bottom: 8px; }
   .control-row select { background: #0a0a0a; color: var(--text); border: 1px solid var(--border);
     padding: 3px 8px; font: inherit; border-radius: 2px; }
+  /* Terminal-style segmented toggles (match the bitcointerminal toolbar):
+     dark boxed group, thin separators, orange-filled active segment. */
+  /* Segmented toggles — identical to bitcointerminal's .tb-mode-toggle. */
+  .seg-label { font-size: 14px; color: #fff; letter-spacing: 0.5px; text-transform: uppercase; }
+  /* Toolbar group: pairs a label with its toggle, separated from the
+     previous group by a left-border partition. */
+  #toolbar .tb-group { display: inline-flex; align-items: center; gap: 8px;
+    padding-left: 14px; margin-left: 4px; align-self: stretch;
+    border-left: 1px solid #54585f; }
+  #toolbar .tb-input { background: #0a0a0a; color: #ff8c00; font-weight: 700; border: 1px solid #3a3d42;
+    font-family: inherit; font-size: 14px; padding: 5px 8px; width: 56px; border-radius: 3px;
+    text-align: right; -moz-appearance: textfield; cursor: text; }
+  #toolbar .tb-input:hover { border-color: #555; }
+  #toolbar .tb-input:focus { outline: none; border-color: #ff8c00; background: #111; }
+  #toolbar .tb-input::-webkit-outer-spin-button,
+  #toolbar .tb-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .seg { display: inline-flex; gap: 1px; background: #0d0d0d; padding: 2px;
+    border: 1px solid #555; border-radius: 2px; height: 30px; align-items: center;
+    box-sizing: border-box; }
+  .seg button { height: 24px; display: inline-flex; align-items: center; justify-content: center;
+    padding: 0 10px; font-size: 14px; letter-spacing: 0.5px; background: #0d0d0d;
+    border: 1px solid transparent; border-radius: 2px; color: #fff; cursor: pointer;
+    font-family: inherit; text-transform: uppercase; box-sizing: border-box; line-height: 1;
+    transition: background-color 0.08s ease, color 0.08s ease; }
+  .seg button:hover { background: #2a2a2a; color: #fff; }
+  .seg button.active { background: #ff8c00; color: #000; border-color: #ff8c00; font-weight: bold; }
+  .seg button.active:hover { background: #ffaa33; }
   /* Top legend: color-coded epoch names. Sits above the chart so the
      line-endpoint labels are free to display the actual survival value. */
-  .chart-legend { display: flex; flex-wrap: wrap; gap: 18px; padding: 4px 0 12px 0;
-    font-size: 12px; color: var(--text); border-bottom: 1px solid var(--border);
-    margin-bottom: 10px; }
-  .chart-legend .legend-item { display: inline-flex; align-items: center; gap: 8px; }
+  .chart-legend { position: absolute; top: 8px; left: 10px;
+    z-index: 5; display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+    padding: 0; font-size: 12px; color: var(--text);
+    /* Dark glow so labels stay legible over the price/survival lines (no box). */
+    text-shadow: 0 0 4px #000, 0 0 4px #000, 0 0 2px #000;
+    background: transparent; border: none; pointer-events: auto; }
+  .chart-legend .legend-item { display: inline-flex; align-items: center; gap: 8px;
+    cursor: pointer; user-select: none; padding: 1px 5px; border-radius: 3px;
+    transition: opacity .12s, background .12s; }
+  .chart-legend .legend-item:hover { background: rgba(255,255,255,0.06); }
+  .chart-legend .legend-item.off { opacity: 0.30; }
+  .chart-legend .legend-item.off .label { text-decoration: line-through; }
   .chart-legend .dot { display: inline-block; width: 16px; height: 3px; border-radius: 1px; flex: none; }
-  .source-line { font-size: 11px; color: var(--muted); margin-top: 8px; }
-  .source-line a { color: var(--orange); text-decoration: none; }
-  .source-line a:hover { text-decoration: underline; }
+  .status:empty { display: none; }
+  /* Credit line — identical to bitcointerminal's #credit-line; pinned to the
+     chart's bottom-left, sharing the x-axis-label row. */
+  .credit-line { position: absolute; bottom: 2px; left: 0; z-index: 5;
+    color: #888; font-size: 11px; line-height: 1.4; white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 6px; max-width: 62%; }
+  .credit-line a { color: inherit; text-decoration: none; cursor: pointer; }
+  .credit-line a:hover { color: #fff; }
+  /* ── Terminal chrome: top toolbar, brand, icon/lang buttons, explainer modal ── */
+  #toolbar { display: flex; align-items: center; gap: 10px; padding: 8px 14px;
+    background: #000;
+    border-bottom: 1px solid #3a3d42;
+    flex-wrap: wrap; }
+  #toolbar .brand { color: #ff8c00; font-weight: 700; font-size: 17px; letter-spacing: 2px;
+    text-transform: uppercase; font-family: 'Roboto Condensed', 'Arial Narrow', sans-serif;
+    margin-right: 14px; text-decoration: none; cursor: pointer;
+    transition: color .15s ease, text-shadow .15s ease; }
+  #toolbar .brand:hover { color: #ffa83a; text-shadow: 0 0 8px rgba(255,140,0,.35); }
+  #toolbar .spacer { flex: 1; }
+  #toolbar .tb-btn, #toolbar .tb-icon { background: #0d0d0d; color: #fff;
+    border: 1px solid #2a2a2a; padding: 6px 10px; cursor: pointer; font: inherit; font-size: 14px;
+    border-radius: 3px; display: inline-flex; align-items: center; gap: 6px;
+    transition: background .1s, color .1s, border-color .1s; }
+  #toolbar .tb-btn:hover, #toolbar .tb-icon:hover { background: #1a1a1a; color: #fff; border-color: #555; }
+  #toolbar .tb-icon svg { display: block; }
+  #toolbar .tb-methodology { color: #fff; text-transform: uppercase; letter-spacing: 0.5px;
+    font-weight: 400; font-family: inherit; font-size: 14px; margin-right: 6px; }
+  #toolbar .tb-methodology:hover { color: #fff; background: #1a1a1a; }
+  #modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none;
+    align-items: center; justify-content: center; z-index: 100; }
+  /* Open without dimming the page; let clicks pass through to the chart. */
+  #modal-bg.show { display: flex; background: transparent; pointer-events: none; }
+  #modal-bg.show #modal { pointer-events: auto; }
+  #modal { background: #0c0c0c; border: 1px solid #2a2a2a; border-radius: 4px;
+    max-width: 640px; width: 90vw; max-height: 80vh; overflow: auto; }
+  /* Once dragged, JS pins the panel with fixed top/left so flex-centring stops fighting it. */
+  #modal.is-dragged { position: fixed; margin: 0; }
+  #modal .modal-head { display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; border-bottom: 1px solid #2a2a2a;
+    cursor: grab; user-select: none; }
+  #modal .modal-head:active { cursor: grabbing; }
+  #modal .modal-head .modal-x { cursor: pointer; }
+  /* Explainer modal — mirrors bitcointerminal: Source Code Pro, #d4d4d4 body,
+     bright-orange section leads, left-aligned formulas. */
+  #modal .modal-title { color: #fff; font-weight: 700; font-size: 13px;
+    font-family: 'Source Code Pro', Consolas, monospace; letter-spacing: 0.4px;
+    text-transform: none; }
+  #modal .modal-x { cursor: pointer; color: #888; font-size: 20px; line-height: 1; padding: 0 4px; }
+  #modal .modal-x:hover { color: #fff; }
+  #modal .modal-body { padding: 16px; font-family: 'Source Code Pro', Consolas, monospace;
+    font-size: 11px; font-weight: 400; line-height: 1.55; letter-spacing: 0; color: #fff;
+    text-align: left; }
+  #modal .modal-body p { margin: 0 0 10px 0; }
+  #modal .modal-body strong { color: #fff; font-weight: 400; }
+  #modal .modal-body em { color: #fff; font-style: italic; }
+  #modal .modal-body ul { margin: 0 0 10px 18px; padding: 0; }
+  #modal .modal-body li { margin: 2px 0; }
+  #modal .modal-body a { color: #fff; text-decoration: underline; }
+  #modal .modal-body a:hover { color: #fff; }
+  /* Left-align MathJax display equations (default is centred), match body size. */
+  #modal .modal-body mjx-container[display="true"] { text-align: left !important;
+    font-size: 1.45em !important; margin: 6px 0 12px 0 !important; }
+  #modal .modal-body mjx-container { font-size: 1.3em !important; }
+  /* Force pure white on all explainer text (only section leads stay orange). */
+  #modal .modal-body, #modal .modal-body p, #modal .modal-body li,
+  #modal .modal-body em, #modal .modal-body a, #modal .modal-body div,
+  #modal .modal-body strong,
+  #modal .modal-body mjx-container, #modal .modal-body mjx-container * { color: #fff !important; }
+  #modal .modal-body strong { font-weight: 400 !important; }
+  /* Inserted document title — the ONLY orange + bold element in the body. */
+  #modal .modal-body .exp-title { color: #FFA500 !important; font-weight: 700 !important;
+    font-size: 13px; margin: 0 0 12px 0; }
+  /* Translucent BITCOINTERMINAL.NET watermark, centred behind the chart —
+     identical to bitcointerminal's .chart-watermark. z-index 1 sits above the
+     chart canvas but below the legend/credit overlays; pointer-events none so
+     it never blocks the toggle clicks. */
+  .chart-watermark { position: absolute; inset: 0; display: flex;
+    align-items: center; justify-content: center; pointer-events: none; z-index: 0;
+    font-family: 'Roboto Condensed', 'Arial Narrow', sans-serif; font-weight: 700;
+    letter-spacing: 4px; text-transform: uppercase; color: rgba(255,255,255,0.08);
+    white-space: nowrap; user-select: none; overflow: hidden;
+    font-size: clamp(28px, 5vw, 60px); }
 </style>
-<script src="https://unpkg.com/lightweight-charts@5/dist/lightweight-charts.standalone.production.js"></script>
+<script src="https://unpkg.com/lightweight-charts@5.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<script>window.MathJax={tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]'],['$$','$$']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js" async></script>
 </head>
 <body>
 
-<div class="chart-wrap">
-  <h1>Stratified Kaplan-Meier — Bitcoin new-buyer cohort survival by halving epoch</h1>
-  <p>Five Kaplan-Meier survival curves, one per halving epoch. For each epoch, the cohort is the set of UTXOs born in the first <i>W</i> days post-halving and still un-spent at the close of that onboarding window. Each curve tracks the fraction of that cohort still un-spent through day <code>(T − W)</code> post-onboarding, where <code>T = <span id="phase-days-display">…</span></code> days is how long Epoch 5 has been in progress. The chart extends by one day each calendar day — Epoch 5 always sits at the right edge, prior epochs are truncated to the same days-since-halving point for fair comparison.</p>
-  <div class="control-row">
-    <label>Onboarding window&nbsp;<i>W</i>:&nbsp;
-      <select id="window-select">
-        <option value="30">30 days</option>
-        <option value="60">60 days</option>
-        <option value="90" selected>90 days</option>
-        <option value="180">180 days</option>
-      </select>
-    </label>
-    <label>Weighting:&nbsp;
-      <select id="weighting-select" title="Count: 1 UTXO = 1 unit. BTC: 1 sat = 1 unit. Count is robust to whales but contaminated by exchange consolidation/change outputs. BTC answers the economic question but is sensitive to single large actors.">
-        <option value="count">Count (1 UTXO = 1)</option>
-        <option value="btc" selected>BTC (sats-weighted)</option>
-      </select>
-    </label>
+<div id="toolbar">
+  <a class="brand" href="https://bitcointerminal.net/" title="Back to BITCOINTERMINAL.NET">BITCOINTERMINAL.NET</a>
+  <button id="btn-explainer" class="tb-btn tb-methodology" data-i18n="explainerTitle" data-i18n-title="explainerTitle" title="Explainer" aria-label="Explainer">Explainer</button>
+  <div class="tb-group">
+    <span class="seg-label" data-i18n="lblBefore">Days before halving</span>
+    <input id="before-input" class="tb-input" type="number" min="0" max="365" step="1" value="99"
+           inputmode="numeric" aria-label="Days before halving" title="Shift the cohort window to start this many days before the halving (0 = at the halving).">
   </div>
-  <div class="chart-legend" id="chart-legend"></div>
+  <div class="tb-group">
+    <span class="seg-label" data-i18n="lblWindow">Onboarding window</span>
+    <div class="seg" id="window-seg" role="group" aria-label="Onboarding window">
+      <button type="button" data-value="30">30D</button>
+      <button type="button" data-value="90">90D</button>
+      <button type="button" data-value="150" class="active">150D</button>
+      <button type="button" data-value="180">180D</button>
+      <button type="button" data-value="365">365D</button>
+    </div>
+  </div>
+  <div class="tb-group">
+    <span class="seg-label" data-i18n="lblWeighting">Weighting</span>
+    <div class="seg" id="weighting-seg" role="group" aria-label="Weighting"
+         title="BTC: 1 sat = 1 unit. USD: cost-basis dollars.">
+      <button type="button" data-value="btc" class="active">BTC</button>
+      <button type="button" data-value="usd">USD</button>
+    </div>
+  </div>
+  <div class="tb-group">
+    <span class="seg-label" data-i18n="lblCensor">Right-censor</span>
+    <div class="seg" id="censor-seg" role="group" aria-label="Right-censoring"
+         title="ON: truncate every cohort to the youngest epoch's follow-up so curves stay comparable. OFF: follow each cohort to today (full history, unequal lengths).">
+      <button type="button" data-value="on" class="active">ON</button>
+      <button type="button" data-value="off">OFF</button>
+    </div>
+  </div>
+  <span class="spacer"></span>
+  <button id="btn-lang" class="tb-btn" title="Change language"><span id="lang-label">日本語</span></button>
+</div>
+<div class="page">
+<div class="chart-wrap">
+  <h1 data-i18n="title">Percent of Cohort BTC still Unspent</h1>
   <div class="chart-with-axes">
     <div class="chart-and-x">
-      <div id="chart"></div>
-      <div class="x-axis-label">Days post-onboarding</div>
+      <div class="chart-legend" id="chart-legend"></div>
+      <div class="endpoint-col" id="endpoint-col"></div>
+      <div id="cross-tip"></div>
+      <div class="chart-watermark">BITCOINTERMINAL.NET</div>
+      <div id="chart" role="img" aria-label="Kaplan-Meier survival curves of Bitcoin supply by halving-epoch cohort"></div>
+      <div class="x-axis-label" data-i18n="xAxis">Post-Onboarding Window (days)</div>
+      <div class="credit-line">Powered by <a href="https://x.com/_nym21_" target="_blank" rel="noopener noreferrer">Bitcoin Research Kit</a> and <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener noreferrer">TradingView</a>. Follow me <a href="https://x.com/RenshuBTC" target="_blank" rel="noopener noreferrer">@RenshuBTC</a></div>
     </div>
-    <div class="y-axis-label"><span id="y-axis-label-text">Survival rate (% of cohort BTC still un-spent)</span></div>
+    <div class="y-axis-label"><span id="y-axis-label-text">Percent of Cohort BTC still Unspent</span></div>
   </div>
   <div class="status" id="status">Loading BRK series ...</div>
-  <div class="source-line">
-    Data: <a href="https://bitview.space/api" target="_blank" rel="noopener">bitview.space</a>
-    (Bitcoin Research Kit). Series fetched live at <code>/api/series/&lt;name&gt;/day1</code>
-    from <code>utxos_under_X_old_utxo_count</code> (count mode) or
-    <code>utxos_under_X_old_supply_sats</code> (BTC mode).
-    Source code: open in your browser's <i>View Source</i>; CC0, no rights reserved.
-  </div>
 </div>
+
+</div>
+<div id="modal-bg"><div id="modal">
+  <div class="modal-head"><span class="modal-title" data-i18n="explainerHeading">Explainer</span><span class="modal-x" id="modal-x">×</span></div>
+  <div class="modal-body"><div data-i18n="explainerBody"></div></div>
+</div></div>
 
 <script>
 "use strict";
@@ -186,34 +362,79 @@ const HALVING_DATES = [
 // days-since-halving point so cross-epoch comparison stays fair.
 const PHASE_DAYS = Math.max(1, Math.floor((TODAY - HALVING_DATES[4]) / DAY_MS));
 
-let ONBOARDING_W   = 90;            // mutable via #window-select dropdown
-let WEIGHTING      = "btc";         // "count" | "btc" — mutable via #weighting-select
+let ONBOARDING_W   = 150;           // mutable via #window-seg toggle; band-edge values only (exact N₀)
+let DAYS_BEFORE    = 99;            // days before the halving the cohort window opens (#before-input); default = BlackRock IBIT launch (2024-01-11) to the 2024 halving
+let WEIGHTING      = "btc";         // "btc" | "usd" — mutable via #weighting-seg toggle
+let RIGHT_CENSOR   = true;          // true = cap all cohorts to the youngest epoch horizon (fair compare); false = run each to today
+// Epochs toggled OFF in the legend (click a legend item to toggle). Epoch 1
+// is hidden by default — its tiny 2009–2012 supply makes the cohort
+// denominator unstable — but it's now selectable like any other epoch, and
+// any permutation of epochs can be shown.
+const hiddenEpochs = new Set([1]);   // Cohort 1 hidden by default
+let LANG = "en";   // active language; cycled by the language button
+const LANGS = ["en", "ja", "fr", "fa", "zh"];
+const LANG_NATIVE = { en: "English", ja: "日本語", fr: "Français", fa: "فارسی", zh: "中文" };
+const LOCALE = { en: "en-US", ja: "ja-JP", fr: "fr-FR", fa: "fa-IR", zh: "zh-CN" };
+const RTL = new Set(["fa"]);
+
+// Dynamic UI strings (legend, hover tooltip, markers) per language.
+const UI = {
+  en: { cohort:"Cohort", sp:" ", inProgress:" (in progress, today is t={t})", noPrice:" (lacks price data before mid-2010)",
+        headerTpl:"Day {t} Post-Onboarding Window", colWindow:"Window", colPrice:"Price", colUnspent:"% Unspent",
+        to:"to", cycle:"Cycle", top:"Top", bottom:"Bottom",
+        tip:"Click to show or hide this cohort.",
+        tipE1:"Cohort 1 (2009–2012): tiny early supply makes the cohort denominator unstable — interpret with caution. Click to hide." },
+  ja: { cohort:"コホート", sp:"", inProgress:"（進行中、本日 t={t}）", noPrice:"（2010年中頃より前は価格データなし）",
+        headerTpl:"オンボーディング後 {t}日目", colWindow:"期間", colPrice:"価格", colUnspent:"未使用%",
+        to:"〜", cycle:"サイクル", top:"天井", bottom:"底",
+        tip:"クリックで表示／非表示。",
+        tipE1:"コホート1（2009〜2012年）：初期供給が少なく分母が不安定です。注意して解釈してください。クリックで非表示。" },
+  fr: { cohort:"Cohorte", sp:" ", inProgress:" (en cours, aujourd'hui t={t})", noPrice:" (pas de données de prix avant mi-2010)",
+        headerTpl:"Jour {t} de la fenêtre post-intégration", colWindow:"Fenêtre", colPrice:"Prix", colUnspent:"% non dépensé",
+        to:"à", cycle:"Cycle", top:"Sommet", bottom:"Creux",
+        tip:"Cliquez pour afficher ou masquer cette cohorte.",
+        tipE1:"Cohorte 1 (2009–2012) : la faible offre initiale rend le dénominateur instable — à interpréter avec prudence. Cliquez pour masquer." },
+  fa: { cohort:"کوهورت", sp:" ", inProgress:" (در حال انجام، امروز t={t})", noPrice:" (فاقد دادهٔ قیمت پیش از اواسط ۲۰۱۰)",
+        headerTpl:"روز {t} پس از پذیرش", colWindow:"بازه", colPrice:"قیمت", colUnspent:"٪ خرج‌نشده",
+        to:"تا", cycle:"چرخه", top:"سقف", bottom:"کف",
+        tip:"برای نمایش یا پنهان‌کردن این کوهورت کلیک کنید.",
+        tipE1:"کوهورت ۱ (۲۰۰۹–۲۰۱۲): عرضهٔ ناچیز اولیه مخرج را ناپایدار می‌کند — با احتیاط تفسیر کنید. برای پنهان‌کردن کلیک کنید." },
+  zh: { cohort:"队列", sp:"", inProgress:"（进行中，今天 t={t}）", noPrice:"（2010年中之前无价格数据）",
+        headerTpl:"纳入后第 {t} 天", colWindow:"区间", colPrice:"价格", colUnspent:"未花费%",
+        to:"至", cycle:"周期", top:"顶部", bottom:"底部",
+        tip:"点击显示或隐藏该队列。",
+        tipE1:"队列1（2009–2012）：早期供应极少，使分母不稳定——请谨慎解读。点击隐藏。" },
+};
+function _ui() { return UI[LANG] || UI.en; }
+
+const TITLE = {
+  en: { btc:"Percent of Cohort BTC Supply still Unspent", usd:"Percent of Cohort USD Invested still Unspent" },
+  ja: { btc:"未使用のままのコホートBTC供給量の割合", usd:"未使用のままのコホートUSD投資額の割合" },
+  fr: { btc:"Pourcentage de l'offre BTC de la cohorte encore non dépensée", usd:"Pourcentage du capital USD de la cohorte encore non dépensé" },
+  fa: { btc:"درصد عرضهٔ BTC کوهورت که هنوز خرج‌نشده", usd:"درصد سرمایهٔ USD کوهورت که هنوز خرج‌نشده" },
+  zh: { btc:"队列BTC供应量中仍未花费的百分比", usd:"队列USD投入中仍未花费的百分比" },
+};
 
 // Map weighting mode → BRK metric-name suffix. Both endpoint families are
 // indexed identically (same /day1 grid, same band edges) so the only thing
 // that changes between modes is which prefix is fetched and read.
 const METRIC_SUFFIX = {
-  count: "utxo_count",
   btc:   "supply_sats",
+  usd:   "realized_cap",   // cost-basis USD: Σ (creation_price × sats) per band
 };
+// Short label per weighting mode, used in status text + mode names.
+const MODE_LABEL = { btc: "BTC", usd: "USD" };
 function metricName(label, mode = WEIGHTING) {
   return `utxos_under_${label}_old_${METRIC_SUFFIX[mode]}`;
 }
 
 const EPOCHS = [
-  { num: 1, name: "Epoch 1",                                                 start: HALVING_DATES[0], color: getCSS("--c1"), width: 2 },
-  { num: 2, name: "Epoch 2",                                                 start: HALVING_DATES[1], color: getCSS("--c2"), width: 2 },
-  { num: 3, name: "Epoch 3",                                                 start: HALVING_DATES[2], color: getCSS("--c3"), width: 2 },
-  { num: 4, name: "Epoch 4",                                                 start: HALVING_DATES[3], color: getCSS("--c4"), width: 2 },
-  { num: 5, name: `Epoch 5 (in progress, today is t=${PHASE_DAYS})`,         start: HALVING_DATES[4], color: getCSS("--c5"), width: 3 },
+  { num: 1, name: "Cohort 1",                                                 start: HALVING_DATES[0], color: getCSS("--c1"), width: 2 },
+  { num: 2, name: "Cohort 2",                                                 start: HALVING_DATES[1], color: getCSS("--c2"), width: 2 },
+  { num: 3, name: "Cohort 3",                                                 start: HALVING_DATES[2], color: getCSS("--c3"), width: 2 },
+  { num: 4, name: "Cohort 4",                                                 start: HALVING_DATES[3], color: getCSS("--c4"), width: 2 },
+  { num: 5, name: `Cohort 5 (in progress, today is t=${PHASE_DAYS})`,         start: HALVING_DATES[4], color: getCSS("--c5"), width: 3 },
 ];
-
-// Surface PHASE_DAYS in the description paragraph so readers can see the
-// current value without inspecting the source.
-{
-  const el = document.getElementById("phase-days-display");
-  if (el) el.textContent = String(PHASE_DAYS);
-}
 
 // BRK age-band edges, in days. Each maps to a pair of series named
 // `utxos_under_<label>_old_utxo_count` (count) and
@@ -349,10 +570,12 @@ function valueUnderDaysAtIdx(daysX, idx) {
 //   clamped to a running min at the end of the loop.
 //
 function survivalCurve(epoch, W) {
-  const startIdx  = dayIdx(epoch.start);
+  const startIdx  = dayIdx(epoch.start) - DAYS_BEFORE;
   const todayIdx  = dayIdx(TODAY);
   const cohortIdx = startIdx + W;
-  const maxT      = Math.min(PHASE_DAYS - W, todayIdx - cohortIdx);
+  const maxT      = RIGHT_CENSOR
+    ? Math.min(PHASE_DAYS + DAYS_BEFORE - W, todayIdx - cohortIdx)
+    : (todayIdx - cohortIdx);
   if (maxT < 1) return [];
 
   const cohort = valueUnderDaysAtIdx(W, cohortIdx);
@@ -382,8 +605,10 @@ function survivalCurve(epoch, W) {
 
 const chart = LightweightCharts.createChart(document.getElementById("chart"), {
   layout: {
-    background: { type: "solid", color: getCSS("--panel") },
-    textColor: getCSS("--text"),
+    attributionLogo: false,   // hide the built-in TV logo (credited in the footer instead)
+    background: { type: "solid", color: "rgba(0,0,0,0)" },   // transparent so the watermark shows behind the curves
+    textColor: "#ff8c00",   // Bloomberg-orange axis tick labels (like bitcointerminal old)
+    fontFamily: "'Source Code Pro', Consolas, monospace",
     fontSize: 11,
   },
   grid: {
@@ -392,7 +617,7 @@ const chart = LightweightCharts.createChart(document.getElementById("chart"), {
   },
   rightPriceScale: {
     borderColor: getCSS("--border"),
-    scaleMargins: { top: 0.05, bottom: 0.05 },
+    scaleMargins: { top: 0.02, bottom: 0.06 },
   },
   timeScale: {
     borderColor: getCSS("--border"),
@@ -402,37 +627,21 @@ const chart = LightweightCharts.createChart(document.getElementById("chart"), {
     rightOffset: 6,
     fixLeftEdge: true,
     fixRightEdge: true,
-    tickMarkFormatter: (time) => {
-      const d = Number(time);
-      if (d === 0)   return "0d";
-      if (d < 60)    return `${d}d`;
-      if (d < 365)   return `${Math.round(d/30)}mo`;
-      if (d === 365) return "1y";
-      return `${(d/365.25).toFixed(1)}y`;
-    },
+    // X-axis ticks always in days (no months/years), matching the
+    // "Days post-onboarding" axis label.
+    tickMarkFormatter: (time) => `${Math.round(Number(time))}d`,
   },
   crosshair: {
     mode: LightweightCharts.CrosshairMode.Normal,
     vertLine: {
-      color: getCSS("--muted"), labelVisible: true,
-      labelBackgroundColor: "#1a1a1a",
-      style: LightweightCharts.LineStyle.Dotted,
+      color: "#ffffff", width: 1, style: LightweightCharts.LineStyle.Solid,
+      labelVisible: false,
     },
-    horzLine: {
-      color: getCSS("--muted"), labelVisible: true,
-      labelBackgroundColor: "#1a1a1a",
-      style: LightweightCharts.LineStyle.Dotted,
-    },
+    horzLine: { visible: false, labelVisible: false },
   },
   localization: {
     priceFormatter: (v) => `${(v*100).toFixed(1)}%`,
-    timeFormatter: (t) => {
-      const d = Number(t);
-      const y = d / 365.25;
-      if (d < 30)  return `day ${d} post-onboarding`;
-      if (d < 365) return `day ${d} (${(d/30.4).toFixed(1)}mo) post-onboarding`;
-      return `day ${d} (${y.toFixed(2)}y) post-onboarding`;
-    },
+    timeFormatter: (t) => `day ${Number(t)} Post-Onboarding Window`,
   },
 });
 
@@ -441,8 +650,8 @@ const chart = LightweightCharts.createChart(document.getElementById("chart"), {
 // ════════════════════════════════════════════════════════════════════════════
 
 const status      = document.getElementById("status");
-const windowSel   = document.getElementById("window-select");
-const weightSel   = document.getElementById("weighting-select");
+const windowSeg   = document.getElementById("window-seg");
+const weightSeg   = document.getElementById("weighting-seg");
 const yLabelEl    = document.getElementById("y-axis-label-text");
 const legendEl    = document.getElementById("chart-legend");
 
@@ -455,24 +664,107 @@ function metricsForMode(mode) {
 // can skip re-fetching on a toggle back-and-forth.
 const loadedModes = new Set();
 
-// Y-axis label text per mode.
-const Y_LABEL = {
-  count: "Survival rate (% of cohort UTXOs still un-spent)",
-  btc:   "Survival rate (% of cohort BTC still un-spent)",
-};
+// Mode-aware title — used for the chart title, the y-axis label, AND the explainer title.
+function titleText(mode, lang) {
+  const tab = TITLE[lang] || TITLE.en;
+  return tab[mode === "usd" ? "usd" : "btc"];
+}
+function syncTitles() {
+  const tt = titleText(WEIGHTING, LANG);
+  const h1 = document.querySelector('h1[data-i18n="title"]');
+  if (h1) h1.textContent = tt;
+  if (yLabelEl) yLabelEl.textContent = tt;
+  const et = document.querySelector('#modal .exp-title');
+  if (et) et.textContent = tt;
+  try { document.title = tt; } catch (e) {}
+}
 
 let renderedSeries = [];
+let _lastEndpoints = [];
+// One tag per visible cohort, left edge on the y-axis line, at the line's
+// endpoint height; nudged apart on collision so each stays a single row.
+function positionEndpointLabels() {
+  const epCol = document.getElementById("endpoint-col");
+  if (!epCol) return;
+  let leftX = 0;
+  try { leftX = chart.timeScale().width(); } catch (e) {}   // x of the right price-axis line
+  const rows = [];
+  for (const p of _lastEndpoints) {
+    let y = null;
+    try { y = p.series.priceToCoordinate(p.value); } catch (e) {}
+    if (y == null) continue;
+    rows.push({ num: p.num, color: p.color, value: p.value, y });
+  }
+  rows.sort((a, b) => a.y - b.y);
+  const ROW = 17;
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i].y < rows[i - 1].y + ROW) rows[i].y = rows[i - 1].y + ROW;
+  }
+  epCol.innerHTML = rows.map(r =>
+    `<span class="ep-item" style="background:${r.color}; left:${leftX}px; top:${r.y}px">` +
+    `${_ui().cohort}${_ui().sp}${r.num}: ${(r.value * 100).toFixed(1)}%</span>`
+  ).join("");
+}
+let priceData = null;   // BTC USD daily price series (per-epoch price overlay)
 
 // Build the top legend once at boot from the EPOCHS list (excluding E1
 // which is not plotted). Color swatches mirror the chart's series colors.
+// Localized epoch label for the legend (chart series identity is by colour).
+function epochLabel(num) {
+  const u = _ui();
+  const base = `${u.cohort}${u.sp}${num}`;
+  if (num === 5) return base + u.inProgress.replace("{t}", PHASE_DAYS);
+  if (num === 1) return base + u.noPrice;
+  return base;
+}
 function buildLegend() {
   legendEl.innerHTML = EPOCHS
-    .filter(e => e.num !== 1)
-    .map(e => `<span class="legend-item">` +
-                `<span class="dot" style="background:${e.color};"></span>` +
-                `${e.name}` +
-              `</span>`)
+    .map(e => {
+      const off = hiddenEpochs.has(e.num) ? " off" : "";
+      const _esc = (x) => String(x).replace(/"/g, "&quot;");
+      const tip = e.num === 1
+        ? ` title="${_esc(_ui().tipE1)}"`
+        : ` title="${_esc(_ui().tip)}"`;
+      return `<span class="legend-item${off}" data-epoch="${e.num}"${tip}>` +
+               `<span class="dot" style="background:${e.color};"></span>` +
+               `<span class="label">${epochLabel(e.num)}</span>` +
+             `</span>`;
+    })
     .join("");
+}
+
+// BTC price context per epoch: normalize each epoch's price to its
+// onboarding-day value so the line starts at 1.0 (like the survival curve)
+// and shows relative price performance over the epoch, on the SAME
+// days-post-onboarding x-axis. Indexing mirrors survivalCurve exactly.
+function priceCurve(epoch, W) {
+  if (!priceData) return [];
+  const cohortIdx = dayIdx(epoch.start) - DAYS_BEFORE + W;
+  const maxT = RIGHT_CENSOR
+    ? Math.min(PHASE_DAYS + DAYS_BEFORE - W, dayIdx(TODAY) - cohortIdx)
+    : (dayIdx(TODAY) - cohortIdx);
+  if (maxT < 1) return [];
+  let base = valueAtIdx(priceData, cohortIdx);
+  if (!(base > 0)) {
+    // Epoch 1 onboards in 2009, before BTC had a market price. Fall back to
+    // the first positive price within the window so the line still renders.
+    for (let t = 1; t <= maxT; t++) {
+      const px = valueAtIdx(priceData, cohortIdx + t);
+      if (px > 0) { base = px; break; }
+    }
+  }
+  if (!(base > 0)) return [];
+  const pts = [];
+  for (let t = 0; t <= maxT; t++) {
+    const px = valueAtIdx(priceData, cohortIdx + t);
+    if (px > 0) pts.push({ time: t, value: px / base });
+  }
+  return pts;
+}
+function hexToRgba(hex, a) {
+  const h = String(hex).trim().replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r || 0}, ${g || 0}, ${b || 0}, ${a})`;
 }
 
 function render() {
@@ -482,33 +774,90 @@ function render() {
   }
   renderedSeries = [];
 
-  for (const e of EPOCHS) {
-    // Epoch 1's tiny early-history supply makes the cohort denominator
-    // unstable. Excluded from the chart for legibility.
-    if (e.num === 1) continue;
+  const shown = EPOCHS.filter(e => !hiddenEpochs.has(e.num));
 
-    const points = survivalCurve(e, ONBOARDING_W);
-    if (points.length < 2) continue;
-
-    const data = points.map(p => ({ time: p.age, value: p.s }));
-    // lastValueVisible: true ⇒ the line-endpoint label shows the survival
-    // PERCENTAGE (formatted by the chart's priceFormatter). Series identity
-    // is conveyed by the top legend, so no `title` is set.
-    const ls = chart.addSeries(LightweightCharts.LineSeries, {
+  // Pass 1 — BTC price context lines, BEHIND the survival curves. ALL on ONE
+  // shared LOG scale (upper half; bottom 50% reserved for the survival curves)
+  // so the epochs stay COMPARABLE. Each line is normalized to its
+  // onboarding-day value (starts at 1.0), so the shared log scale shows each
+  // epoch's relative price trajectory from a common baseline — the log
+  // compression keeps lower-fold-gain epochs (e.g. Epoch 5, ~1.4x) visible
+  // alongside the 10-30x early bull runs, while the relative magnitude stays
+  // honest. Hidden epochs are skipped here too, so a legend toggle hides an
+  // epoch's survival line AND its price line together.
+  for (const e of shown) {
+    const pc = priceCurve(e, ONBOARDING_W);
+    if (pc.length < 2) continue;
+    const ps = chart.addSeries(LightweightCharts.LineSeries, {
       color: e.color,
       lineWidth: e.width,
       lineStyle: LightweightCharts.LineStyle.Solid,
-      lastValueVisible: true,
+      priceScaleId: "btc",
+      lastValueVisible: false,
       priceLineVisible: false,
+      crosshairMarkerVisible: true,
+    });
+    ps.setData(pc);
+    renderedSeries.push(ps);
+    // Mark this epoch's cycle TOP (peak) and BOTTOM (trough) on its price line.
+    if (LightweightCharts.createSeriesMarkers) {
+      // Cycle TOP only: the peak is captured within the window. (Cycle bottoms
+      // are not marked — the bear-market low falls outside the visible window
+      // and the series minimum is the onboarding-start price, not a real bottom.)
+      let maxV = -Infinity, maxTi = 0;
+      for (const pt of pc) {
+        if (pt.value > maxV) { maxV = pt.value; maxTi = pt.time; }
+      }
+      const cIdx = dayIdx(e.start) - DAYS_BEFORE + ONBOARDING_W;
+      const markers = [
+        { time: maxTi, position: "aboveBar", color: e.color, shape: "arrowDown",
+          text: `${_ui().cycle}${_ui().sp}${e.num} ${_ui().top} ` + _fmtPrice(valueAtIdx(priceData, cIdx + maxTi)) },
+      ];
+      try { LightweightCharts.createSeriesMarkers(ps, markers); } catch (e2) {}
+    }
+  }
+  try {
+    chart.priceScale("btc").applyOptions({
+      scaleMargins: { top: 0.02, bottom: 0.50 },
+      mode: LightweightCharts.PriceScaleMode.Logarithmic,
+      autoScale: true,
+    });
+  } catch (e) {}
+
+  // Pass 2 — Kaplan-Meier survival curves, ON TOP, on the % scale.
+  const endpoints = [];
+  for (const e of shown) {
+    const points = survivalCurve(e, ONBOARDING_W);
+    if (points.length < 2) continue;
+    const data = points.map(p => ({ time: p.age, value: p.s }));
+    // Area series → "volume" look: gradient from the line fading to transparent
+    // at the baseline, so overlapping cohorts stay visible (solid line on top).
+    const ls = chart.addSeries(LightweightCharts.AreaSeries, {
+      lineColor: e.color,
+      lineWidth: e.width,
+      lineStyle: LightweightCharts.LineStyle.Solid,
+      // Bloomberg-style wash: saturated near the line, fading to transparent.
+      topColor: hexToRgba(e.color, 0.55),
+      bottomColor: hexToRgba(e.color, 0.04),
+      lastValueVisible: false,
+      priceLineVisible: false,
+      // Cap the survival y-axis at 100% (S(0)=1); bottom auto-scales.
+      autoscaleInfoProvider: (orig) => {
+        const r = orig();
+        if (r && r.priceRange && r.priceRange.maxValue > 1) r.priceRange.maxValue = 1;
+        return r;
+      },
     });
     ls.setData(data);
     renderedSeries.push(ls);
+    endpoints.push({ num: e.num, color: e.color, value: data[data.length - 1].value, series: ls, epoch: e });
   }
+  _lastEndpoints = endpoints;
 
   chart.timeScale().fitContent();
-  if (yLabelEl) yLabelEl.textContent = Y_LABEL[WEIGHTING];
-  const modeName = WEIGHTING === "btc" ? "BTC-weighted" : "count-weighted";
-  status.textContent = `Done. W=${ONBOARDING_W}d, ${modeName}. Survival horizon = 0..${PHASE_DAYS - ONBOARDING_W}d post-onboarding.`;
+  requestAnimationFrame(positionEndpointLabels);
+  syncTitles();
+  status.textContent = "";   // cleared on completion — credit footer is the bottom line
 }
 
 // Ensure all 19 BRK series for a given weighting mode are in seriesByMetric.
@@ -516,9 +865,9 @@ function render() {
 async function ensureModeLoaded(mode) {
   if (loadedModes.has(mode)) return true;
   const metrics = metricsForMode(mode);
-  status.textContent = `Fetching 0/${metrics.length} BRK series (${mode === "btc" ? "BTC" : "count"} mode) ...`;
+  status.textContent = `Fetching 0/${metrics.length} BRK series (${MODE_LABEL[mode]} mode) ...`;
   const results = await fetchMany(metrics, (done, total) => {
-    status.textContent = `Fetching ${done}/${total} BRK series (${mode === "btc" ? "BTC" : "count"} mode) ...`;
+    status.textContent = `Fetching ${done}/${total} BRK series (${MODE_LABEL[mode]} mode) ...`;
   });
   for (let i = 0; i < metrics.length; i++) {
     if (results[i]) seriesByMetric[metrics[i]] = results[i];
@@ -533,6 +882,142 @@ async function ensureModeLoaded(mode) {
 }
 
 buildLegend();
+// Legend doubles as the cohort toggle: click an epoch to show/hide its curve.
+legendEl.addEventListener("click", (ev) => {
+  const item = ev.target.closest(".legend-item[data-epoch]");
+  if (!item) return;
+  const num = parseInt(item.dataset.epoch, 10);
+  if (hiddenEpochs.has(num)) hiddenEpochs.delete(num);
+  else hiddenEpochs.add(num);
+  item.classList.toggle("off", hiddenEpochs.has(num));
+  render();
+});
+
+// ── i18n (English / 日本語) + explainer modal ──────────────────────────────
+const I18N = {
+  en: {
+    title: "Percent of Cohort BTC still Unspent",
+    lblBefore: "Days before halving",
+    lblWindow: "Onboarding window",
+    lblWeighting: "Weighting",
+    lblCensor: "Right-censor",
+    xAxis: "Post-Onboarding Window (days)",
+    explainerHeading: "Explainer",
+    explainerTitle: "Explainer",
+    explainerBody: `<div class="exp-title">Percent of Cohort BTC still Unspent</div><p><strong>What this shows.</strong> An original per-epoch survival framing of Bitcoin cohorts &mdash; one Kaplan&ndash;Meier curve per halving epoch, tracking how quickly each cohort's coins are spent.</p><p><strong>Cohort.</strong> For halving epoch \\(\\mathrm{h}\\), the cohort window opens \\(\\mathrm{B}\\) days before the halving (the box) and spans the onboarding window of \\(\\mathrm{W}\\) days. The cohort is the set of UTXOs created in that \\(\\mathrm{W}\\)-day window and still unspent at its close; its size then, in the chosen unit, is \\(\\mathrm{N_0}\\). \\(\\mathrm{B}\\) defaults to 99 &mdash; the gap from BlackRock's IBIT spot-ETF launch (2024-01-11) to the 2024 halving.</p><p><strong>Survival function.</strong> With \\(\\mathrm{t}\\) days after the onboarding close and \\(\\mathrm{N(t)}\\) the cohort amount still unspent at day \\(\\mathrm{t}\\):</p>\\[\\mathrm{ S(t)=\\frac{N(t)}{N_0},\\qquad S(0)=1. }\\]<p>In product-limit (Kaplan&ndash;Meier) form, with \\(\\mathrm{d_i}\\) units spent on day \\(\\mathrm{i}\\) and \\(\\mathrm{n_i}\\) units at risk just before:</p>\\[\\mathrm{ \\hat S(t)=\\prod_{i\\,:\\,t_i\\le t}\\!\\left(1-\\frac{d_i}{n_i}\\right). }\\]<p>On-chain spends are fully observed, so there is no per-coin censoring and the two forms coincide.</p><p><strong>Weighting</strong> sets the unit of \\(\\mathrm{N}\\):</p><ul><li><strong>BTC</strong> &mdash; \\(\\mathrm{N=\\sum_j s_j}\\), the supply in satoshis.</li><li><strong>USD</strong> &mdash; \\(\\mathrm{N}\\) = realized cap \\(\\mathrm{=\\sum_j s_j\\,p_{c(j)}}\\): each UTXO's sats \\(\\mathrm{s_j}\\) valued at the BTC price \\(\\mathrm{p_{c(j)}}\\) on its creation day.</li></ul><p><strong>Comparability &amp; right-censoring.</strong> The chart grows one day per calendar day. With <em>Right-censor ON</em> (default) every cohort is truncated to the follow-up Cohort 5 has reached, so all curves share the horizon \\(\\mathrm{T-W}\\) (currently \\(\\mathrm{T=${PHASE_DAYS}}\\) days) and are directly comparable; turn it OFF to follow each cohort to today (full history, unequal lengths). Cohort 1 (2009&ndash;2012) is hidden by default &mdash; its tiny early supply makes \\(\\mathrm{N_0}\\) unstable and BTC had no market price before mid-2010 (toggle it on in the legend).</p><p><strong>Accuracy.</strong> Cohorts are reconstructed from BRK age-band totals (edges at 1, 2, 3, 4, 5, 6 months, then 1y, 2y&hellip;). The onboarding windows \\(\\mathrm{W}\\) sit on these edges so \\(\\mathrm{N_0}\\) is exact, but the curve's tail is interpolated once a cohort's age passes the fine 30-day edges.</p><p><strong>Credits.</strong> This work builds on the HODL Waves lens introduced by <a href="https://unchained.com/blog/hodl-waves-1/" target="_blank" rel="noopener noreferrer">Unchained Capital</a> (<a href="https://x.com/dhruvbansal" target="_blank" rel="noopener noreferrer">Dhruv Bansal</a>, 2018) and the cohort-analysis methods of <em>"Deciphering Bitcoin Blockchain Data by Cohort Analysis"</em> by Yulin Liu, <a href="https://x.com/sunshineluyao" target="_blank" rel="noopener noreferrer">Luyao Zhang</a> &amp; Yinhong Zhao (<em>Scientific Data</em>, 2022).</p>`,
+  },
+  ja: {
+    title: "未使用のままのコホートBTCの割合",
+    lblBefore: "半減期前の日数",
+    lblWindow: "オンボーディング期間",
+    lblWeighting: "加重方式",
+    lblCensor: "右側打ち切り",
+    xAxis: "オンボーディング後の期間（日）",
+    explainerHeading: "解説",
+    explainerTitle: "解説",
+    explainerBody: `<div class="exp-title">未使用のままのコホートBTCの割合</div><p><strong>概要。</strong> ビットコイン・コホートのエポック別生存分析です &mdash; 半減期エポックごとに1本のカプラン・マイヤー曲線で、各コホートのコインがどれだけ速く使用されるかを追跡します。</p><p><strong>コホート。</strong> 半減期エポック \\(\\mathrm{h}\\) について、コホート期間は半減期の \\(\\mathrm{B}\\) 日前（入力欄）に始まり、オンボーディング期間 \\(\\mathrm{W}\\) 日にわたります。コホートはその \\(\\mathrm{W}\\) 日間に生成され、終了時点で未使用のUTXOの集合で、その規模（選択単位）を \\(\\mathrm{N_0}\\) とします。\\(\\mathrm{B}\\) の既定値は99——BlackRock の現物ETF（IBIT）上場日（2024-01-11）から2024年の半減期までの日数です。</p><p><strong>生存関数。</strong> オンボーディング終了後 \\(\\mathrm{t}\\) 日、未使用残量を \\(\\mathrm{N(t)}\\) とすると：</p>\\[\\mathrm{ S(t)=\\frac{N(t)}{N_0},\\qquad S(0)=1. }\\]<p>積極限（カプラン・マイヤー）形式では、\\(\\mathrm{i}\\) 日目に使用された量を \\(\\mathrm{d_i}\\)、直前のリスク集合を \\(\\mathrm{n_i}\\) として：</p>\\[\\mathrm{ \\hat S(t)=\\prod_{i\\,:\\,t_i\\le t}\\!\\left(1-\\frac{d_i}{n_i}\\right). }\\]<p>オンチェーンの使用は完全に観測されるため個々のコインの打ち切りはなく、両式は一致します。</p><p><strong>加重</strong> は \\(\\mathrm{N}\\) の単位を決めます：</p><ul><li><strong>BTC</strong> &mdash; \\(\\mathrm{N=\\sum_j s_j}\\)、サトシ建ての供給量。</li><li><strong>USD</strong> &mdash; \\(\\mathrm{N}\\) = 実現時価 \\(\\mathrm{=\\sum_j s_j\\,p_{c(j)}}\\)：各UTXOのサトシ \\(\\mathrm{s_j}\\) を生成日のBTC価格 \\(\\mathrm{p_{c(j)}}\\) で評価。</li></ul><p><strong>比較可能性と右側打ち切り。</strong> チャートは1日ごとに1日分伸びます。<em>右側打ち切りON</em>（既定）では各コホートはコホート5の経過期間に切り詰められ、すべての曲線が共通の時間軸 \\(\\mathrm{T-W}\\)（現在 \\(\\mathrm{T=${PHASE_DAYS}}\\) 日）を共有し直接比較できます。OFFにすると各コホートを本日まで追跡します（全履歴、長さは不揃い）。コホート1（2009〜2012年）は既定で非表示です——初期供給が少なく \\(\\mathrm{N_0}\\) が不安定で、2010年中頃まで市場価格が存在しなかったためです（凡例で表示に切替可）。</p><p><strong>精度。</strong> コホートはBRKの年齢バンド累計（境界は1・2・3・4・5・6か月、その後1年、2年…）から再構成されます。オンボーディング期間 \\(\\mathrm{W}\\) はこれらの境界に合わせるため \\(\\mathrm{N_0}\\) は厳密ですが、コホートの年齢が30日刻みの細かい境界を超えると曲線の末尾は補間になります。</p><p><strong>クレジット。</strong> 本作は <a href="https://unchained.com/blog/hodl-waves-1/" target="_blank" rel="noopener noreferrer">Unchained Capital</a>（<a href="https://x.com/dhruvbansal" target="_blank" rel="noopener noreferrer">Dhruv Bansal</a>、2018年）の HODL Waves と、<em>「Deciphering Bitcoin Blockchain Data by Cohort Analysis」</em>（Yulin Liu、<a href="https://x.com/sunshineluyao" target="_blank" rel="noopener noreferrer">Luyao Zhang</a>、Yinhong Zhao、<em>Scientific Data</em>、2022年）のコホート分析手法を踏まえています。</p>`,
+  },
+  fr: {
+    title: "Pourcentage de l'offre BTC de la cohorte encore non dépensée",
+    lblBefore: "Jours avant le halving",
+    lblWindow: "Fenêtre d'intégration",
+    lblWeighting: "Pondération",
+    lblCensor: "Censure à droite",
+    xAxis: "Fenêtre post-intégration (jours)",
+    explainerHeading: "Explications",
+    explainerTitle: "Explications",
+    explainerBody: `<div class="exp-title">Pourcentage de l'offre BTC de la cohorte encore non dépensée</div><p><strong>Ce que montre ce graphique.</strong> Une lecture inédite, par époque, de la survie des cohortes Bitcoin &mdash; une courbe de Kaplan&ndash;Meier par époque de halving, qui suit la vitesse à laquelle les pièces de chaque cohorte sont dépensées.</p><p><strong>Cohorte.</strong> Pour l'époque de halving \\(\\mathrm{h}\\), la fenêtre de la cohorte s'ouvre \\(\\mathrm{B}\\) jours avant le halving (le champ) et s'étend sur la fenêtre d'intégration de \\(\\mathrm{W}\\) jours. La cohorte est l'ensemble des UTXO créés dans cette fenêtre de \\(\\mathrm{W}\\) jours et encore non dépensés à sa clôture ; sa taille à ce moment, dans l'unité choisie, est \\(\\mathrm{N_0}\\). \\(\\mathrm{B}\\) vaut 99 par défaut &mdash; l'écart entre le lancement de l'ETF au comptant IBIT de BlackRock (2024-01-11) et le halving de 2024.</p><p><strong>Fonction de survie.</strong> Avec \\(\\mathrm{t}\\) jours après la clôture de l'intégration et \\(\\mathrm{N(t)}\\) la quantité de la cohorte encore non dépensée au jour \\(\\mathrm{t}\\) :</p>\\[\\mathrm{ S(t)=\\frac{N(t)}{N_0},\\qquad S(0)=1. }\\]<p>Sous forme produit-limite (Kaplan&ndash;Meier), avec \\(\\mathrm{d_i}\\) unités dépensées le jour \\(\\mathrm{i}\\) et \\(\\mathrm{n_i}\\) unités à risque juste avant :</p>\\[\\mathrm{ \\hat S(t)=\\prod_{i\\,:\\,t_i\\le t}\\!\\left(1-\\frac{d_i}{n_i}\\right). }\\]<p>Les dépenses on-chain sont entièrement observées : il n'y a donc pas de censure par pièce et les deux formes coïncident.</p><p><strong>La pondération</strong> fixe l'unité de \\(\\mathrm{N}\\) :</p><ul><li><strong>BTC</strong> &mdash; \\(\\mathrm{N=\\sum_j s_j}\\), l'offre en satoshis.</li><li><strong>USD</strong> &mdash; \\(\\mathrm{N}\\) = capitalisation réalisée \\(\\mathrm{=\\sum_j s_j\\,p_{c(j)}}\\) : les satoshis \\(\\mathrm{s_j}\\) de chaque UTXO valorisés au prix du BTC \\(\\mathrm{p_{c(j)}}\\) le jour de sa création.</li></ul><p><strong>Comparabilité et censure à droite.</strong> Le graphique s'allonge d'un jour par jour calendaire. Avec <em>Censure à droite activée</em> (par défaut), chaque cohorte est tronquée au suivi qu'a atteint la cohorte 5 : toutes les courbes partagent l'horizon \\(\\mathrm{T-W}\\) (actuellement \\(\\mathrm{T=${PHASE_DAYS}}\\) jours) et sont directement comparables ; désactivez-la pour suivre chaque cohorte jusqu'à aujourd'hui (historique complet, longueurs inégales). La cohorte 1 (2009&ndash;2012) est masquée par défaut &mdash; sa faible offre initiale rend \\(\\mathrm{N_0}\\) instable et le BTC n'avait pas de prix de marché avant mi-2010 (activez-la dans la légende).</p><p><strong>Précision.</strong> Les cohortes sont reconstruites à partir des totaux par bande d'âge de BRK (bornes à 1, 2, 3, 4, 5, 6 mois, puis 1 an, 2 ans&hellip;). Les fenêtres d'intégration \\(\\mathrm{W}\\) tombent sur ces bornes, donc \\(\\mathrm{N_0}\\) est exact, mais la queue de la courbe est interpolée dès que l'âge d'une cohorte dépasse les bornes fines de 30 jours.</p><p><strong>Crédits.</strong> Ce travail s'appuie sur l'approche HODL Waves introduite par <a href="https://unchained.com/blog/hodl-waves-1/" target="_blank" rel="noopener noreferrer">Unchained Capital</a> (<a href="https://x.com/dhruvbansal" target="_blank" rel="noopener noreferrer">Dhruv Bansal</a>, 2018) et les méthodes d'analyse par cohorte de <em>« Deciphering Bitcoin Blockchain Data by Cohort Analysis »</em> par Yulin Liu, <a href="https://x.com/sunshineluyao" target="_blank" rel="noopener noreferrer">Luyao Zhang</a> &amp; Yinhong Zhao (<em>Scientific Data</em>, 2022).</p>`,
+  },
+  fa: {
+    title: "درصد عرضهٔ BTC کوهورت که هنوز خرج‌نشده",
+    lblBefore: "روزهای پیش از هاوینگ",
+    lblWindow: "بازهٔ پذیرش",
+    lblWeighting: "وزن‌دهی",
+    lblCensor: "سانسور راست",
+    xAxis: "بازهٔ پس از پذیرش (روز)",
+    explainerHeading: "توضیحات",
+    explainerTitle: "توضیحات",
+    explainerBody: `<div class="exp-title">درصد عرضهٔ BTC کوهورت که هنوز خرج‌نشده</div><p><strong>این نمودار چه نشان می‌دهد.</strong> یک تحلیل بقای اصیلِ کوهورت‌های بیت‌کوین به تفکیک هر دوره &mdash; برای هر دورهٔ هاوینگ یک منحنی کاپلان&ndash;مایر که سرعت خرج‌شدن سکه‌های هر کوهورت را دنبال می‌کند.</p><p><strong>کوهورت.</strong> برای دورهٔ هاوینگ \\(\\mathrm{h}\\)، پنجرهٔ کوهورت \\(\\mathrm{B}\\) روز پیش از هاوینگ باز می‌شود (کادر ورودی) و بازهٔ پذیرش \\(\\mathrm{W}\\) روز را دربرمی‌گیرد. کوهورت مجموعهٔ UTXOهایی است که در آن بازهٔ \\(\\mathrm{W}\\) روزه ساخته شده و تا پایان آن خرج‌نشده مانده‌اند؛ اندازهٔ آن در آن لحظه، بر حسب واحد انتخابی، \\(\\mathrm{N_0}\\) است. مقدار پیش‌فرض \\(\\mathrm{B}\\) برابر ۹۹ است &mdash; فاصلهٔ میان عرضهٔ ETF نقدی IBIT بلک‌راک (2024-01-11) تا هاوینگ ۲۰۲۴.</p><p><strong>تابع بقا.</strong> با \\(\\mathrm{t}\\) روز پس از پایان پذیرش و \\(\\mathrm{N(t)}\\) مقدار خرج‌نشدهٔ کوهورت در روز \\(\\mathrm{t}\\):</p>\\[\\mathrm{ S(t)=\\frac{N(t)}{N_0},\\qquad S(0)=1. }\\]<p>در شکل حد-حاصل‌ضرب (کاپلان&ndash;مایر)، با \\(\\mathrm{d_i}\\) واحد خرج‌شده در روز \\(\\mathrm{i}\\) و \\(\\mathrm{n_i}\\) واحد در معرض درست پیش از آن:</p>\\[\\mathrm{ \\hat S(t)=\\prod_{i\\,:\\,t_i\\le t}\\!\\left(1-\\frac{d_i}{n_i}\\right). }\\]<p>خرج‌کردن‌های روی‌زنجیره به‌طور کامل مشاهده می‌شوند؛ بنابراین سانسوری در سطح تک‌سکه وجود ندارد و دو شکل یکسان‌اند.</p><p><strong>وزن‌دهی</strong> واحد \\(\\mathrm{N}\\) را تعیین می‌کند:</p><ul><li><strong>BTC</strong> &mdash; \\(\\mathrm{N=\\sum_j s_j}\\)، عرضه بر حسب ساتوشی.</li><li><strong>USD</strong> &mdash; \\(\\mathrm{N}\\) = ارزش بازار محقق‌شده \\(\\mathrm{=\\sum_j s_j\\,p_{c(j)}}\\): ساتوشی‌های هر UTXO یعنی \\(\\mathrm{s_j}\\) به قیمت BTC در روز ساختش یعنی \\(\\mathrm{p_{c(j)}}\\) ارزش‌گذاری می‌شود.</li></ul><p><strong>قابلیت مقایسه و سانسور راست.</strong> نمودار هر روز تقویمی یک روز بلندتر می‌شود. با <em>سانسور راست روشن</em> (پیش‌فرض) هر کوهورت تا طول پیگیری‌ای که کوهورت ۵ به آن رسیده کوتاه می‌شود، پس همهٔ منحنی‌ها افق مشترک \\(\\mathrm{T-W}\\) (اکنون \\(\\mathrm{T=${PHASE_DAYS}}\\) روز) دارند و مستقیماً قابل مقایسه‌اند؛ با خاموش‌کردن آن هر کوهورت تا امروز دنبال می‌شود (تاریخچهٔ کامل، طول‌های نابرابر). کوهورت ۱ (۲۰۰۹&ndash;۲۰۱۲) به‌طور پیش‌فرض پنهان است &mdash; عرضهٔ ناچیز اولیه‌اش \\(\\mathrm{N_0}\\) را ناپایدار می‌کند و BTC پیش از اواسط ۲۰۱۰ قیمت بازار نداشت (از طریق راهنما روشنش کنید).</p><p><strong>دقت.</strong> کوهورت‌ها از مجموع‌های نواری سنی BRK بازسازی می‌شوند (مرزها در ۱، ۲، ۳، ۴، ۵، ۶ ماه، سپس ۱ سال، ۲ سال&hellip;). بازه‌های پذیرش \\(\\mathrm{W}\\) روی این مرزها قرار می‌گیرند، پس \\(\\mathrm{N_0}\\) دقیق است، اما به‌محض آنکه سن یک کوهورت از مرزهای ظریف ۳۰ روزه بگذرد، دنبالهٔ منحنی درون‌یابی می‌شود.</p><p><strong>اعتبارها.</strong> این کار بر پایهٔ نگاه HODL Waves معرفی‌شده توسط <a href="https://unchained.com/blog/hodl-waves-1/" target="_blank" rel="noopener noreferrer">Unchained Capital</a> (<a href="https://x.com/dhruvbansal" target="_blank" rel="noopener noreferrer">Dhruv Bansal</a>، ۲۰۱۸) و روش‌های تحلیل کوهورتیِ <em>«Deciphering Bitcoin Blockchain Data by Cohort Analysis»</em> از Yulin Liu، <a href="https://x.com/sunshineluyao" target="_blank" rel="noopener noreferrer">Luyao Zhang</a> و Yinhong Zhao (<em>Scientific Data</em>، ۲۰۲۲) بنا شده است.</p>`,
+  },
+  zh: {
+    title: "队列BTC供应量中仍未花费的百分比",
+    lblBefore: "减半前天数",
+    lblWindow: "纳入窗口",
+    lblWeighting: "加权方式",
+    lblCensor: "右删失",
+    xAxis: "纳入后区间（天）",
+    explainerHeading: "说明",
+    explainerTitle: "说明",
+    explainerBody: `<div class="exp-title">队列BTC供应量中仍未花费的百分比</div><p><strong>本图展示。</strong> 一种原创的、按减半周期划分的比特币队列存活分析 &mdash; 每个减半周期一条 Kaplan&ndash;Meier 曲线，追踪各队列的币被花费的速度。</p><p><strong>队列。</strong> 对于减半周期 \\(\\mathrm{h}\\)，队列窗口在减半前 \\(\\mathrm{B}\\) 天开启（输入框），并跨越 \\(\\mathrm{W}\\) 天的纳入窗口。队列是在该 \\(\\mathrm{W}\\) 天窗口内创建、且在其结束时仍未花费的 UTXO 集合；以所选单位计，其规模为 \\(\\mathrm{N_0}\\)。\\(\\mathrm{B}\\) 默认为 99 &mdash; 即贝莱德 IBIT 现货 ETF 上市（2024-01-11）到 2024 年减半之间的天数。</p><p><strong>存活函数。</strong> 设 \\(\\mathrm{t}\\) 为纳入结束后的天数，\\(\\mathrm{N(t)}\\) 为第 \\(\\mathrm{t}\\) 天仍未花费的队列数量：</p>\\[\\mathrm{ S(t)=\\frac{N(t)}{N_0},\\qquad S(0)=1. }\\]<p>以乘积极限（Kaplan&ndash;Meier）形式，设 \\(\\mathrm{d_i}\\) 为第 \\(\\mathrm{i}\\) 天花费的数量，\\(\\mathrm{n_i}\\) 为其前的在险数量：</p>\\[\\mathrm{ \\hat S(t)=\\prod_{i\\,:\\,t_i\\le t}\\!\\left(1-\\frac{d_i}{n_i}\\right). }\\]<p>链上花费被完整观测，因此不存在逐币删失，两种形式一致。</p><p><strong>加权</strong> 决定 \\(\\mathrm{N}\\) 的单位：</p><ul><li><strong>BTC</strong> &mdash; \\(\\mathrm{N=\\sum_j s_j}\\)，以聪计的供应量。</li><li><strong>USD</strong> &mdash; \\(\\mathrm{N}\\) = 已实现市值 \\(\\mathrm{=\\sum_j s_j\\,p_{c(j)}}\\)：每个 UTXO 的聪 \\(\\mathrm{s_j}\\) 按其创建当日的 BTC 价格 \\(\\mathrm{p_{c(j)}}\\) 计价。</li></ul><p><strong>可比性与右删失。</strong> 图表每个日历日延长一天。当<em>右删失开启</em>（默认）时，每个队列都被截断到队列 5 已达到的随访长度，因此所有曲线共享同一时间轴 \\(\\mathrm{T-W}\\)（当前 \\(\\mathrm{T=${PHASE_DAYS}}\\) 天）并可直接比较；关闭后则将各队列追踪至今（完整历史，长度不一）。队列 1（2009&ndash;2012）默认隐藏 &mdash; 其早期供应极少使 \\(\\mathrm{N_0}\\) 不稳定，且 2010 年中之前 BTC 没有市场价格（可在图例中开启）。</p><p><strong>精度。</strong> 队列由 BRK 的年龄分段累计重建（分界点为 1、2、3、4、5、6 个月，之后为 1 年、2 年&hellip;）。纳入窗口 \\(\\mathrm{W}\\) 落在这些分界点上，故 \\(\\mathrm{N_0}\\) 精确，但一旦队列年龄超过 30 天的细分界点，曲线尾部即为插值。</p><p><strong>致谢。</strong> 本作基于 <a href="https://unchained.com/blog/hodl-waves-1/" target="_blank" rel="noopener noreferrer">Unchained Capital</a>（<a href="https://x.com/dhruvbansal" target="_blank" rel="noopener noreferrer">Dhruv Bansal</a>，2018）提出的 HODL Waves 视角，以及 <em>《Deciphering Bitcoin Blockchain Data by Cohort Analysis》</em>（Yulin Liu、<a href="https://x.com/sunshineluyao" target="_blank" rel="noopener noreferrer">Luyao Zhang</a>、Yinhong Zhao，<em>Scientific Data</em>，2022）的队列分析方法。</p>`,
+  },
+};
+function applyLang(lang) {
+  LANG = lang;
+  try { document.documentElement.lang = lang; } catch (e) {}
+  const _mb2 = document.querySelector("#modal .modal-body");
+  if (_mb2) _mb2.dir = RTL.has(lang) ? "rtl" : "ltr";   // RTL only inside the explainer text
+  const t = I18N[lang];
+  document.querySelectorAll("[data-i18n]").forEach(el => {
+    const k = el.dataset.i18n; if (t[k] == null) return;
+    if (k === "explainerBody") el.innerHTML = t[k];
+    else el.textContent = t[k];
+  });
+  document.querySelectorAll("[data-i18n-title]").forEach(el => {
+    const k = el.dataset.i18nTitle; if (t[k] != null) el.title = t[k];
+  });
+  const ll = document.getElementById("lang-label");
+  if (ll) { const _ni = (LANGS.indexOf(lang) + 1) % LANGS.length; ll.textContent = LANG_NATIVE[LANGS[_ni]]; }
+  syncTitles();
+  buildLegend();
+  if (loadedModes.has(WEIGHTING)) render();   // re-translate markers + endpoint labels
+  if (window.MathJax && window.MathJax.typesetPromise) {
+    const _mb = document.querySelector("#modal .modal-body");
+    if (_mb) window.MathJax.typesetPromise([_mb]).catch(() => {});
+  }
+}
+const _modalBg = document.getElementById("modal-bg");
+const _modal   = document.getElementById("modal");
+function _openExplainer() {
+  // Re-centre on each open: clear any leftover dragged position.
+  _modal.classList.remove("is-dragged");
+  _modal.style.top = ""; _modal.style.left = "";
+  _modalBg.classList.add("show");
+}
+function _closeExplainer() { _modalBg.classList.remove("show"); }
+document.getElementById("btn-explainer").addEventListener("click", _openExplainer);
+document.getElementById("modal-x").addEventListener("click", _closeExplainer);
+document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") _closeExplainer(); });
+// Drag the panel by its header (grab anywhere except the close button).
+const _modalHead = _modal.querySelector(".modal-head");
+if (_modalHead) {
+  let _drag = null;
+  _modalHead.addEventListener("mousedown", (e) => {
+    if (e.target.closest("#modal-x")) return;
+    const rect = _modal.getBoundingClientRect();
+    _modal.classList.add("is-dragged");
+    _modal.style.left = rect.left + "px";
+    _modal.style.top  = rect.top  + "px";
+    _drag = { dx: e.clientX - rect.left, dy: e.clientY - rect.top };
+    e.preventDefault();
+  });
+  document.addEventListener("mousemove", (e) => {
+    if (!_drag) return;
+    let x = e.clientX - _drag.dx, y = e.clientY - _drag.dy;
+    const margin = 24;
+    if (x < -_modal.offsetWidth + margin) x = -_modal.offsetWidth + margin;
+    if (y < 0) y = 0;
+    if (x > window.innerWidth  - margin) x = window.innerWidth  - margin;
+    if (y > window.innerHeight - margin) y = window.innerHeight - margin;
+    _modal.style.left = x + "px";
+    _modal.style.top  = y + "px";
+  });
+  document.addEventListener("mouseup", () => { _drag = null; });
+}
+document.getElementById("btn-lang").addEventListener("click", () => {
+  const i = LANGS.indexOf(LANG);
+  applyLang(LANGS[(i + 1) % LANGS.length]);
+});
+applyLang("en");
 
 // ════════════════════════════════════════════════════════════════════════════
 // BOOT
@@ -541,28 +1026,152 @@ buildLegend();
 (async () => {
   const ok = await ensureModeLoaded(WEIGHTING);
   if (!ok) return;
+  priceData = await fetchOne("price").catch(() => null);   // BTC USD price for the context overlay
   status.textContent = `Computing K-M curves for ${EPOCHS.length} epochs (W=${ONBOARDING_W}d) ...`;
   await new Promise(r => setTimeout(r, 50));
   render();
 })();
 
-windowSel.addEventListener("change", () => {
-  ONBOARDING_W = parseInt(windowSel.value, 10);
+// Segmented-toggle wiring (replaces the old <select> change handlers).
+// A click on a segment sets its group's active state and runs the same
+// recompute path the dropdowns used to trigger.
+function _segActivate(group, value) {
+  group.querySelectorAll("button").forEach(b => {
+    b.classList.toggle("active", b.dataset.value === String(value));
+  });
+}
+windowSeg.addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-value]");
+  if (!btn) return;
+  ONBOARDING_W = parseInt(btn.dataset.value, 10);
+  _segActivate(windowSeg, btn.dataset.value);
+  status.textContent = `Recomputing for W=${ONBOARDING_W}d ...`;
+  setTimeout(render, 50);
+});
+// Keyboard: A/← previous onboarding window, D/→ next (cycles through the toggles).
+document.addEventListener("keydown", (ev) => {
+  const tag = ev.target && ev.target.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA") return;   // don't hijack the days-before box
+  let dir = 0;
+  if (ev.key === "ArrowRight" || ev.key === "d" || ev.key === "D") dir = 1;
+  else if (ev.key === "ArrowLeft" || ev.key === "a" || ev.key === "A") dir = -1;
+  else return;
+  ev.preventDefault();
+  const vals = Array.from(windowSeg.querySelectorAll("button[data-value]"))
+                    .map(b => parseInt(b.dataset.value, 10));
+  if (!vals.length) return;
+  let idx = vals.indexOf(ONBOARDING_W);
+  if (idx < 0) idx = 0;
+  idx = (idx + dir + vals.length) % vals.length;
+  ONBOARDING_W = vals[idx];
+  _segActivate(windowSeg, String(ONBOARDING_W));
   status.textContent = `Recomputing for W=${ONBOARDING_W}d ...`;
   setTimeout(render, 50);
 });
 
-weightSel.addEventListener("change", async () => {
-  WEIGHTING = weightSel.value;
-  const ok = await ensureModeLoaded(WEIGHTING);
+const beforeInput = document.getElementById("before-input");
+const MAX_DAYS_BEFORE = 365;    // keep the cohort's max age in the densely-banded region so interpolation stays acceptable
+function _applyDaysBefore() {
+  let v = parseInt(beforeInput.value, 10);
+  if (!Number.isFinite(v) || v < 0) v = 0;
+  if (v > MAX_DAYS_BEFORE) v = MAX_DAYS_BEFORE;
+  beforeInput.value = v;
+  DAYS_BEFORE = v;
+  status.textContent = `Recomputing (cohort opens ${v}d before halving) ...`;
+  setTimeout(render, 50);
+}
+beforeInput.addEventListener("change", _applyDaysBefore);
+beforeInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); _applyDaysBefore(); } });
+
+const censorSeg = document.getElementById("censor-seg");
+censorSeg.addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-value]");
+  if (!btn) return;
+  RIGHT_CENSOR = (btn.dataset.value === "on");
+  _segActivate(censorSeg, btn.dataset.value);
+  status.textContent = `Recomputing (right-censoring ${RIGHT_CENSOR ? "on" : "off"}) ...`;
+  setTimeout(render, 50);
+});
+
+weightSeg.addEventListener("click", async (e) => {
+  const btn = e.target.closest("button[data-value]");
+  if (!btn) return;
+  const mode = btn.dataset.value;
+  const ok = await ensureModeLoaded(mode);
   if (!ok) return;
-  status.textContent = `Recomputing in ${WEIGHTING === "btc" ? "BTC" : "count"} mode ...`;
+  WEIGHTING = mode;
+  _segActivate(weightSeg, WEIGHTING);
+  status.textContent = `Recomputing in ${MODE_LABEL[WEIGHTING]} mode ...`;
   setTimeout(render, 50);
 });
 
 window.addEventListener("resize", () => {
   const el = document.getElementById("chart");
   chart.applyOptions({ width: el.clientWidth, height: el.clientHeight });
+  requestAnimationFrame(positionEndpointLabels);
+});
+
+// Crosshair label — solid white vertical line + a box to its right showing,
+// per visible cohort, the calendar date, BTC price, and % of supply still unspent.
+const crossTip = document.getElementById("cross-tip");
+const _chartEl = document.getElementById("chart");
+const _WD = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const _MO = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function _fmtDate(ms) {
+  const d = new Date(ms);
+  const en = `${_WD[d.getUTCDay()]} ${d.getUTCDate()} ${_MO[d.getUTCMonth()]}' ${String(d.getUTCFullYear()).slice(-2)}`;
+  if (LANG === "en") return en;
+  try {
+    return new Intl.DateTimeFormat(LOCALE[LANG] || "en-US",
+      { weekday:"short", day:"numeric", month:"short", year:"2-digit", calendar:"gregory", timeZone:"UTC" }).format(d);
+  } catch (e) { return en; }
+}
+function _fmtPrice(px) {
+  if (!(px > 0)) return "\u2014";
+  return px >= 100 ? "$" + Math.round(px).toLocaleString() : "$" + px.toFixed(2);
+}
+chart.subscribeCrosshairMove(param => {
+  if (!crossTip) return;
+  if (param.time == null || !param.point || param.point.x < 0 || param.point.y < 0) {
+    crossTip.style.display = "none"; return;
+  }
+  const t = Number(param.time);
+  let rowsHtml = "";
+  let any = false;
+  for (const ent of _lastEndpoints) {
+    const sd = param.seriesData.get(ent.series);
+    if (!sd || sd.value == null) continue;
+    const openIdx = dayIdx(ent.epoch.start) - DAYS_BEFORE;        // cohort onboarding start (fixed)
+    const obsIdx  = openIdx + ONBOARDING_W + t;                   // current observation day (moves w/ crosshair)
+    const openMs  = GENESIS.getTime() + Math.max(0, openIdx) * DAY_MS;   // never predate genesis (Cohort 1 edge)
+    const closeMs = GENESIS.getTime() + obsIdx * DAY_MS;
+    const price = _fmtPrice(valueAtIdx(priceData, obsIdx));        // BTC price at this follow-up day
+    const pct = (sd.value * 100).toFixed(1) + "%";
+    rowsHtml += `<span class="ct-name">${_ui().cohort}${_ui().sp}${ent.num}</span>` +
+            `<span class="cg-open">${_fmtDate(openMs)}</span>` +
+            `<span class="cg-to">${_ui().to}</span>` +
+            `<span class="cg-close">${_fmtDate(closeMs)}</span>` +
+            `<span class="cg-price">${price}</span>` +
+            `<span class="cg-pct">${pct}</span>`;
+    any = true;
+  }
+  if (!any) { crossTip.style.display = "none"; return; }
+  const u = _ui();
+  const header = `<span class="cg-h">${u.cohort}</span>` +
+                 `<span class="cg-h cg-win">${u.colWindow}</span>` +
+                 `<span class="cg-h cg-price">${u.colPrice}</span>` +
+                 `<span class="cg-h cg-pct">${u.colUnspent}</span>`;
+  crossTip.innerHTML = `<div class="ct-head">${u.headerTpl.replace("{t}", t)}</div>` +
+                       `<div class="ct-grid">${header}${rowsHtml}</div>`;
+  crossTip.style.display = "block";
+  const cw = _chartEl.clientWidth, ch = _chartEl.clientHeight;
+  const tw = crossTip.offsetWidth, th = crossTip.offsetHeight;
+  let left = param.point.x + 14;
+  if (left + tw > cw) left = param.point.x - tw - 14;   // flip to the left near the right edge
+  let top = param.point.y - th / 2;
+  top = Math.max(2, Math.min(top, ch - th - 2));
+  crossTip.style.left = Math.max(2, left) + "px";
+  crossTip.style.top = top + "px";
 });
 </script>
 
