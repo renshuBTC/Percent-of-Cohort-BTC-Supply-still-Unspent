@@ -1032,11 +1032,14 @@ applyLang("en");
 // ════════════════════════════════════════════════════════════════════════════
 
 (async () => {
-  const ok = await ensureModeLoaded(WEIGHTING);
+  // Fetch the band series and the price overlay CONCURRENTLY so the chart
+  // appears as soon as both land — no serial second round-trip, no artificial delay.
+  const [ok, pd] = await Promise.all([
+    ensureModeLoaded(WEIGHTING),
+    fetchOne("price").catch(() => null),   // BTC USD price for the context overlay
+  ]);
   if (!ok) return;
-  priceData = await fetchOne("price").catch(() => null);   // BTC USD price for the context overlay
-  status.textContent = `Computing K-M curves for ${EPOCHS.length} epochs (W=${ONBOARDING_W}d) ...`;
-  await new Promise(r => setTimeout(r, 50));
+  priceData = pd;
   render();
 })();
 
