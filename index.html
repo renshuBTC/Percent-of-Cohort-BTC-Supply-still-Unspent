@@ -376,6 +376,9 @@ const LANGS = ["en", "ja", "fr", "fa", "zh"];
 const LANG_NATIVE = { en: "English", ja: "日本語", fr: "Français", fa: "فارسی", zh: "中文" };
 const LOCALE = { en: "en-US", ja: "ja-JP", fr: "fr-FR", fa: "fa-IR", zh: "zh-CN" };
 const RTL = new Set(["fa"]);
+// Weekday/month abbreviations for the English date format (used by _fmtDate).
+const _WD = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const _MO = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 // Dynamic UI strings (legend, hover tooltip, markers) per language.
 const UI = {
@@ -1120,8 +1123,6 @@ window.addEventListener("resize", () => {
 // per visible cohort, the calendar date, BTC price, and % of supply still unspent.
 const crossTip = document.getElementById("cross-tip");
 const _chartEl = document.getElementById("chart");
-const _WD = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-const _MO = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 function _fmtDate(ms) {
   const d = new Date(ms);
   const en = `${_WD[d.getUTCDay()]} ${d.getUTCDate()} ${_MO[d.getUTCMonth()]}' ${String(d.getUTCFullYear()).slice(-2)}`;
