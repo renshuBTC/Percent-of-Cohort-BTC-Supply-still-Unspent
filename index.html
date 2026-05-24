@@ -689,7 +689,8 @@ function syncTitles() {
       if (_pd[i] != null && isFinite(v) && v > 0) { _px = v; break; }
     }
   } catch (e) {}
-  const _docTitle = (_px ? Math.round(_px).toLocaleString("en-US") + " | " : "") + tt;
+  // Tab title carries the Bitcoin Terminal brand (the chart h1/axis/explainer keep tt).
+  const _docTitle = (_px ? Math.round(_px).toLocaleString("en-US") + " | " : "") + "Bitcoin Terminal";
   try { document.title = _docTitle; } catch (e) {}
 }
 
