@@ -124,7 +124,9 @@ CC0 1.0 Universal — public domain. Free to use, modify, redistribute. See
   (Dhruv Bansal, 2018).
 - Per-epoch cohort-analysis framing — *"Deciphering Bitcoin Blockchain Data by
   Cohort Analysis"*, Yulin Liu, Luyao Zhang & Yinhong Zhao (*Scientific Data*, 2022).
-- **Bitcoin Research Kit (BRK)** — open-source Bitcoin indexer:
-  [github.com/bitcoinresearchkit/brk](https://github.com/bitcoinresearchkit/brk).
+- **Bitcoin Research Kit (BRK)** — open-source Bitcoin indexer by
+  [@_nym21_](https://x.com/_nym21_):
+  [github.com/bitcoinresearchkit/brk](https://github.com/bitcoinresearchkit/brk),
+  data served via [bitview.space](https://bitview.space).
 - **TradingView Lightweight Charts** — open-source charting library.
 - **Kaplan–Meier** — Edward L. Kaplan & Paul Meier (1958), JASA 53(282).
