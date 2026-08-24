@@ -261,9 +261,9 @@
   .chart-watermark { position: absolute; inset: 0; display: flex;
     align-items: center; justify-content: center; pointer-events: none; z-index: 0;
     font-family: 'Roboto Condensed', 'Arial Narrow', sans-serif; font-weight: 700;
-    letter-spacing: 4px; text-transform: uppercase; color: rgba(255,255,255,0.08);
+    letter-spacing: 4px; color: rgba(255,255,255,0.15);
     white-space: nowrap; user-select: none; overflow: hidden;
-    font-size: clamp(28px, 5vw, 60px); }
+    font-size: 50px; }
 </style>
 <script src="https://unpkg.com/lightweight-charts@5.2.0/dist/lightweight-charts.standalone.production.js"></script>
 <script>window.MathJax={tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]'],['$$','$$']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};</script>
@@ -315,7 +315,7 @@
       <div class="chart-legend" id="chart-legend"></div>
       <div class="endpoint-col" id="endpoint-col"></div>
       <div id="cross-tip"></div>
-      <div class="chart-watermark">@renshuBTC</div>
+      <div class="chart-watermark">@RenshuBTC</div>
       <div id="chart" role="img" aria-label="Kaplan-Meier survival curves of Bitcoin supply by halving-epoch cohort"></div>
       <div class="x-axis-label" data-i18n="xAxis">Post-Onboarding Window (days)</div>
       <div class="credit-line">Powered by <a href="https://x.com/_nym21_" target="_blank" rel="noopener noreferrer">Bitcoin Research Kit</a> and <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener noreferrer">TradingView</a>. Follow me <a href="https://x.com/RenshuBTC" target="_blank" rel="noopener noreferrer">@RenshuBTC</a></div>
